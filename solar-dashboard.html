@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Solar Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #111112;
+    color: #e8e8e6;
+    font-family: system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+    padding: 1.5rem;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.5rem;
+  }
+
+  header h1 {
+    font-size: 18px;
+    font-weight: 500;
+    color: #e8e8e6;
+  }
+
+  #last-update {
+    font-size: 13px;
+    color: #888780;
+  }
+
+  .config-bar {
+    background: #1a1a1c;
+    border: 0.5px solid #2c2c2a;
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.5rem;
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    align-items: flex-end;
+  }
+
+  .config-bar label {
+    font-size: 12px;
+    color: #888780;
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .config-bar input {
+    background: #111112;
+    border: 0.5px solid #3c3c3a;
+    border-radius: 6px;
+    color: #e8e8e6;
+    font-size: 13px;
+    padding: 6px 10px;
+    width: 200px;
+    outline: none;
+  }
+
+  .config-bar input:focus { border-color: #EF9F27; }
+
+  .config-bar button {
+    background: #EF9F27;
+    border: none;
+    border-radius: 6px;
+    color: #111112;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 7px 16px;
+  }
+
+  .config-bar button:hover { background: #BA7517; }
+
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    margin-bottom: 1.5rem;
+  }
+
+  .card {
+    background: #1a1a1c;
+    border: 0.5px solid #2c2c2a;
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+  }
+
+  .card-label {
+    font-size: 12px;
+    color: #888780;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .card-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  .card-value {
+    font-size: 26px;
+    font-weight: 500;
+    line-height: 1.1;
+  }
+
+  .card-unit {
+    font-size: 13px;
+    color: #888780;
+    font-weight: 400;
+    margin-left: 2px;
+  }
+
+  .card-sub {
+    font-size: 12px;
+    color: #888780;
+    margin-top: 4px;
+  }
+
+  .dot-pv    { background: #EF9F27; }
+  .dot-grid  { background: #378ADD; }
+  .dot-ev    { background: #1D9E75; }
+  .dot-day   { background: #7F77DD; }
+
+  .val-pv   { color: #EF9F27; }
+  .val-grid-pos { color: #378ADD; }
+  .val-grid-neg { color: #1D9E75; }
+  .val-ev   { color: #1D9E75; }
+  .val-day  { color: #7F77DD; }
+  .val-neu  { color: #e8e8e6; }
+
+  .charts {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 1.5rem;
+  }
+
+  @media (max-width: 600px) { .charts { grid-template-columns: 1fr; } }
+
+  .chart-card {
+    background: #1a1a1c;
+    border: 0.5px solid #2c2c2a;
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+  }
+
+  .chart-card h2 {
+    font-size: 13px;
+    font-weight: 500;
+    color: #888780;
+    margin-bottom: 1rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .chart-wrap { position: relative; height: 200px; }
+
+  .autarkie-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 200px;
+    position: relative;
+  }
+
+  .autarkie-ring {
+    position: relative;
+    width: 140px;
+    height: 140px;
+  }
+
+  .autarkie-ring canvas { width: 140px !important; height: 140px !important; }
+
+  .autarkie-center {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+  }
+
+  .autarkie-pct {
+    font-size: 26px;
+    font-weight: 500;
+    color: #EF9F27;
+  }
+
+  .autarkie-lbl {
+    font-size: 11px;
+    color: #888780;
+  }
+
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: #1D9E75;
+    display: inline-block;
+    margin-right: 6px;
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  .loading { color: #888780; font-size: 13px; }
+  .error { color: #E24B4A; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>&#9728; Solar Dashboard</h1>
+  <span id="last-update" class="loading">Verbinde...</span>
+</header>
+
+<div class="config-bar">
+  <div>
+    <label>ThingSpeak Channel ID</label>
+    <input id="channelId" type="text" placeholder="z.B. 2345678" />
+  </div>
+  <div>
+    <label>Read API Key</label>
+    <input id="apiKey" type="text" placeholder="z.B. ABC123XYZ..." />
+  </div>
+  <button onclick="saveAndLoad()">Laden</button>
+</div>
+
+<div class="cards">
+  <div class="card">
+    <div class="card-label"><span class="card-dot dot-pv"></span>PV-Leistung</div>
+    <div class="card-value val-pv"><span id="v-pv">—</span><span class="card-unit">W</span></div>
+  </div>
+  <div class="card">
+    <div class="card-label"><span class="card-dot dot-grid"></span>Netzleistung</div>
+    <div class="card-value" id="v-grid-wrap"><span id="v-grid">—</span><span class="card-unit">W</span></div>
+    <div class="card-sub" id="v-grid-hint"></div>
+  </div>
+  <div class="card">
+    <div class="card-label"><span class="card-dot dot-ev"></span>Eigenverbrauch</div>
+    <div class="card-value val-ev"><span id="v-ev">—</span><span class="card-unit">W</span></div>
+  </div>
+  <div class="card">
+    <div class="card-label"><span class="card-dot dot-day"></span>Tagesertrag WR</div>
+    <div class="card-value val-day"><span id="v-yield">—</span><span class="card-unit">kWh</span></div>
+  </div>
+  <div class="card">
+    <div class="card-label"><span class="card-dot" style="background:#378ADD"></span>Tagesbezug Netz</div>
+    <div class="card-value val-neu"><span id="v-grid-day">—</span><span class="card-unit">kWh</span></div>
+  </div>
+</div>
+
+<div class="charts">
+  <div class="chart-card">
+    <h2>Verlauf heute</h2>
+    <div class="chart-wrap">
+      <canvas id="lineChart"></canvas>
+    </div>
+  </div>
+  <div class="chart-card">
+    <h2>Autarkiegrad heute</h2>
+    <div class="autarkie-wrap">
+      <div class="autarkie-ring">
+        <canvas id="donutChart"></canvas>
+        <div class="autarkie-center">
+          <div class="autarkie-pct" id="autarkie-pct">—</div>
+          <div class="autarkie-lbl">autark</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const TS_BASE = 'https://api.thingspeak.com/channels';
+let channelId = localStorage.getItem('ts_channel') || '';
+let apiKey    = localStorage.getItem('ts_key') || '';
+let lineChart, donutChart;
+
+document.getElementById('channelId').value = channelId;
+document.getElementById('apiKey').value    = apiKey;
+
+function saveAndLoad() {
+  channelId = document.getElementById('channelId').value.trim();
+  apiKey    = document.getElementById('apiKey').value.trim();
+  localStorage.setItem('ts_channel', channelId);
+  localStorage.setItem('ts_key', apiKey);
+  fetchData();
+}
+
+function fmtTime(iso) {
+  const d = new Date(iso);
+  return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
+}
+
+async function fetchData() {
+  if (!channelId || !apiKey) {
+    document.getElementById('last-update').textContent = 'Bitte Channel ID und API Key eingeben';
+    return;
+  }
+  try {
+    const url = `${TS_BASE}/${channelId}/feeds.json?api_key=${apiKey}&results=60`;
+    const res = await fetch(url);
+    const json = await res.json();
+    const feeds = json.feeds;
+    if (!feeds || feeds.length === 0) throw new Error('Keine Daten');
+
+    const latest = feeds[feeds.length - 1];
+    const pv   = parseFloat(latest.field1) || 0;
+    const grid = parseFloat(latest.field2) || 0;
+    const ev   = parseFloat(latest.field3) || 0;
+    const yld  = parseFloat(latest.field4) || 0;
+    const gday = parseFloat(latest.field5) || 0;
+
+    document.getElementById('v-pv').textContent      = Math.round(pv);
+    document.getElementById('v-grid').textContent    = Math.round(Math.abs(grid));
+    document.getElementById('v-ev').textContent      = Math.round(ev);
+    document.getElementById('v-yield').textContent   = yld.toFixed(2);
+    document.getElementById('v-grid-day').textContent = gday.toFixed(2);
+
+    const gridWrap = document.getElementById('v-grid-wrap');
+    const gridHint = document.getElementById('v-grid-hint');
+    if (grid >= 0) {
+      gridWrap.className = 'card-value val-grid-pos';
+      gridHint.textContent = '↑ Netzbezug';
+    } else {
+      gridWrap.className = 'card-value val-grid-neg';
+      gridHint.textContent = '↓ Einspeisung';
+    }
+
+    const autarkie = (yld + gday) > 0 ? Math.min((yld / (yld + gday)) * 100, 100) : 0;
+    document.getElementById('autarkie-pct').textContent = Math.round(autarkie) + '%';
+
+    const labels  = feeds.map(f => fmtTime(f.created_at));
+    const pvData  = feeds.map(f => parseFloat(f.field1) || 0);
+    const griData = feeds.map(f => parseFloat(f.field2) || 0);
+    const evData  = feeds.map(f => parseFloat(f.field3) || 0);
+
+    updateLineChart(labels, pvData, griData, evData);
+    updateDonut(autarkie);
+
+    const now = new Date();
+    document.getElementById('last-update').innerHTML =
+      `<span class="status-dot"></span>Aktualisiert ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
+
+  } catch(e) {
+    document.getElementById('last-update').innerHTML = `<span class="error">Fehler: ${e.message}</span>`;
+  }
+}
+
+function updateLineChart(labels, pv, grid, ev) {
+  const ctx = document.getElementById('lineChart').getContext('2d');
+  if (lineChart) lineChart.destroy();
+  lineChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'PV (W)',          data: pv,   borderColor: '#EF9F27', backgroundColor: 'rgba(239,159,39,0.08)', borderWidth: 2, pointRadius: 0, tension: 0.3, fill: true },
+        { label: 'Netz (W)',        data: grid, borderColor: '#378ADD', backgroundColor: 'rgba(55,138,221,0.06)', borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false },
+        { label: 'Eigenverbrauch (W)', data: ev, borderColor: '#1D9E75', backgroundColor: 'rgba(29,158,117,0.06)', borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false },
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: '#888780', font: { size: 11 }, boxWidth: 12, padding: 12 } }
+      },
+      scales: {
+        x: { ticks: { color: '#888780', font: { size: 11 }, maxTicksLimit: 8 }, grid: { color: '#2c2c2a' } },
+        y: { ticks: { color: '#888780', font: { size: 11 } }, grid: { color: '#2c2c2a' } }
+      }
+    }
+  });
+}
+
+function updateDonut(autarkie) {
+  const ctx = document.getElementById('donutChart').getContext('2d');
+  if (donutChart) donutChart.destroy();
+  const rest = Math.max(0, 100 - autarkie);
+  donutChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      datasets: [{
+        data: [autarkie, rest],
+        backgroundColor: ['#EF9F27', '#2c2c2a'],
+        borderWidth: 0,
+        hoverOffset: 0
+      }]
+    },
+    options: {
+      responsive: false,
+      cutout: '72%',
+      plugins: { legend: { display: false }, tooltip: { enabled: false } }
+    }
+  });
+}
+
+if (channelId && apiKey) fetchData();
+setInterval(fetchData, 30000);
+</script>
+</body>
+</html>
