@@ -272,11 +272,18 @@
   </div>
 </div>
 
+<div class="chart-card" style="margin-bottom:1.5rem;">
+  <h2>Letzte 7 Tage — Ertrag &amp; Netzbezug (kWh)</h2>
+  <div class="chart-wrap" style="height:220px;">
+    <canvas id="barChart"></canvas>
+  </div>
+</div>
+
 <script>
 const TS_BASE   = 'https://api.thingspeak.com/channels';
 const channelId = '3386295';
 const apiKey    = 'ZDAL2S7P2M5TOEXH';
-let lineChart, donutChart;
+let lineChart, donutChart, barChart;
 
 function fmtTime(iso) {
   const d = new Date(iso);
@@ -344,6 +351,7 @@ async function fetchData() {
     const evData  = feeds.map(f => parseFloat(f.field3) || 0);
     updateLineChart(labels, pvData, griData, evData);
     updateDonut(autarkie);
+    fetchWeekData();
 
     const now = new Date();
     document.getElementById('last-update').innerHTML =
@@ -377,6 +385,92 @@ function updateLineChart(labels, pv, grid, ev) {
       scales: {
         x: { ticks: { color: '#888780', font: { size: 11 }, maxTicksLimit: 8 }, grid: { color: '#2c2c2a' } },
         y: { ticks: { color: '#888780', font: { size: 11 } },                   grid: { color: '#2c2c2a' } }
+      }
+    }
+  });
+}
+
+async function fetchWeekData() {
+  try {
+    const days    = 7;
+    const labels  = [];
+    const ertrag    = [];
+    const bezug     = [];
+    const autarkieW = [];
+
+    for (let i = days - 1; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      const dateStr = date.toISOString().split('T')[0];
+      const start   = dateStr + 'T00:00:00Z';
+      const end     = dateStr + 'T23:59:59Z';
+
+      const url  = `${TS_BASE}/${channelId}/feeds.json?api_key=${apiKey}&start=${start}&end=${end}&results=1&timescale=daily`;
+      const res  = await fetch(url);
+      const json = await res.json();
+      const feeds = json.feeds;
+
+      labels.push(date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }));
+
+      if (feeds && feeds.length > 0) {
+        // Letzten Wert des Tages = Tagesendstand
+        // Ersten Wert des Tages holen für Differenz
+        const urlDay = `${TS_BASE}/${channelId}/feeds.json?api_key=${apiKey}&start=${start}&end=${end}&results=1000`;
+        const resDay = await fetch(urlDay);
+        const jsonDay = await resDay.json();
+        const feedsDay = jsonDay.feeds;
+
+        if (feedsDay && feedsDay.length > 0) {
+          const first = feedsDay[0];
+          const last  = feedsDay[feedsDay.length - 1];
+          // Tagesertrag = letzter field4 - erster field4
+          const e = Math.max(0, (parseFloat(last.field4) || 0) - (parseFloat(first.field4) || 0));
+          // Tagesverbrauch = letzter field5 - erster field5
+          const b = Math.max(0, (parseFloat(last.field5) || 0) - (parseFloat(first.field5) || 0));
+          ertrag.push(parseFloat(e.toFixed(2)));
+          bezug.push(parseFloat(b.toFixed(2)));
+          const verbrauchTag = e + (b > 0 ? b : 0);
+          autarkieW.push(verbrauchTag > 0 ? parseFloat(Math.min((e / verbrauchTag) * 100, 100).toFixed(1)) : 0);
+        } else {
+          ertrag.push(0);
+          bezug.push(0);
+          autarkieW.push(0);
+        }
+      } else {
+        ertrag.push(0);
+        bezug.push(0);
+        autarkieW.push(0);
+      }
+    }
+    updateBarChart(labels, ertrag, bezug, autarkieW);
+  } catch(e) {
+    console.error('Wochendaten Fehler:', e);
+  }
+}
+
+function updateBarChart(labels, ertrag, bezug, autarkieW) {
+  const ctx = document.getElementById('barChart').getContext('2d');
+  if (barChart) barChart.destroy();
+  barChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Ertrag (kWh)',      data: ertrag,    backgroundColor: 'rgba(239,159,39,0.8)', borderRadius: 4, type: 'bar' },
+        { label: 'Netzbezug (kWh)',  data: bezug,     backgroundColor: 'rgba(226,75,74,0.7)',  borderRadius: 4, type: 'bar' },
+        { label: 'Autarkie (%)',     data: autarkieW, borderColor: '#1D9E75', backgroundColor: 'transparent', borderWidth: 2, pointRadius: 3, pointBackgroundColor: '#1D9E75', tension: 0.3, type: 'line', yAxisID: 'y2' },
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: '#888780', font: { size: 11 }, boxWidth: 12, padding: 12 } }
+      },
+      scales: {
+        x: { ticks: { color: '#888780', font: { size: 11 } }, grid: { color: '#2c2c2a' } },
+        y:  { ticks: { color: '#888780', font: { size: 11 } }, grid: { color: '#2c2c2a' }, title: { display: true, text: 'kWh', color: '#888780', font: { size: 10 } } },
+        y2: { position: 'right', min: 0, max: 100, ticks: { color: '#1D9E75', font: { size: 11 }, callback: v => v + '%' }, grid: { drawOnChartArea: false }, title: { display: true, text: '%', color: '#1D9E75', font: { size: 10 } } }
       }
     }
   });
