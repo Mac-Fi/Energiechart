@@ -245,6 +245,10 @@
     <div class="card-label"><span class="card-dot dot-gray"></span>Gesamtertrag WR</div>
     <div class="card-value val-neu"><span id="v-total">—</span><span class="card-unit">kWh</span></div>
   </div>
+  <div class="card">
+    <div class="card-label"><span class="card-dot dot-teal"></span>Gesamteinsparung</div>
+    <div class="card-value val-teal"><span id="v-total-einsparung">—</span><span class="card-unit">€</span></div>
+  </div>
 </div>
 
 <div class="charts">
@@ -326,7 +330,9 @@ async function fetchData() {
     document.getElementById('v-einsparung').textContent = einsparung.toFixed(2);
 
     // Gesamt
-    document.getElementById('v-total').textContent = yldTotal.toFixed(0);
+    const gesamteinsparung = yldTotal * 0.29;
+    document.getElementById('v-total').textContent            = yldTotal.toFixed(0);
+    document.getElementById('v-total-einsparung').textContent = gesamteinsparung.toFixed(0);
 
     // Autarkie
     document.getElementById('autarkie-pct').textContent = Math.round(autarkie) + '%';
