@@ -34,52 +34,6 @@
     color: #888780;
   }
 
-  .config-bar { display: none; }
-  .config-bar-hidden {
-    background: #1a1a1c;
-    border: 0.5px solid #2c2c2a;
-    border-radius: 10px;
-    padding: 1rem 1.25rem;
-    margin-bottom: 1.5rem;
-    display: flex;
-    gap: 1rem;
-    flex-wrap: wrap;
-    align-items: flex-end;
-  }
-
-  .config-bar label {
-    font-size: 12px;
-    color: #888780;
-    display: block;
-    margin-bottom: 4px;
-  }
-
-  .config-bar input {
-    background: #111112;
-    border: 0.5px solid #3c3c3a;
-    border-radius: 6px;
-    color: #e8e8e6;
-    font-size: 13px;
-    padding: 6px 10px;
-    width: 200px;
-    outline: none;
-  }
-
-  .config-bar input:focus { border-color: #EF9F27; }
-
-  .config-bar button {
-    background: #EF9F27;
-    border: none;
-    border-radius: 6px;
-    color: #111112;
-    cursor: pointer;
-    font-size: 13px;
-    font-weight: 500;
-    padding: 7px 16px;
-  }
-
-  .config-bar button:hover { background: #BA7517; }
-
   .cards {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
@@ -108,6 +62,7 @@
     height: 8px;
     border-radius: 50%;
     display: inline-block;
+    flex-shrink: 0;
   }
 
   .card-value {
@@ -133,19 +88,35 @@
   .dot-grid  { background: #378ADD; }
   .dot-ev    { background: #1D9E75; }
   .dot-day   { background: #7F77DD; }
+  .dot-red   { background: #E24B4A; }
+  .dot-teal  { background: #20B2AA; }
+  .dot-gray  { background: #888780; }
 
-  .val-pv   { color: #EF9F27; }
+  .val-pv       { color: #EF9F27; }
   .val-grid-pos { color: #378ADD; }
   .val-grid-neg { color: #1D9E75; }
-  .val-ev   { color: #1D9E75; }
-  .val-day  { color: #7F77DD; }
-  .val-neu  { color: #e8e8e6; }
+  .val-ev       { color: #1D9E75; }
+  .val-day      { color: #7F77DD; }
+  .val-neu      { color: #e8e8e6; }
+  .val-red      { color: #E24B4A; }
+  .val-teal     { color: #20B2AA; }
+
+  .section-title {
+    font-size: 11px;
+    font-weight: 500;
+    color: #888780;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    margin-bottom: 10px;
+    margin-top: 1.5rem;
+  }
 
   .charts {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 12px;
     margin-bottom: 1.5rem;
+    margin-top: 1.5rem;
   }
 
   @media (max-width: 600px) { .charts { grid-template-columns: 1fr; } }
@@ -174,7 +145,6 @@
     align-items: center;
     justify-content: center;
     height: 200px;
-    position: relative;
   }
 
   .autarkie-ring {
@@ -218,7 +188,7 @@
   }
 
   .loading { color: #888780; font-size: 13px; }
-  .error { color: #E24B4A; font-size: 13px; }
+  .error   { color: #E24B4A; font-size: 13px; }
 </style>
 </head>
 <body>
@@ -228,18 +198,7 @@
   <span id="last-update" class="loading">Verbinde...</span>
 </header>
 
-<div class="config-bar">
-  <div>
-    <label>ThingSpeak Channel ID</label>
-    <input id="channelId" type="text" placeholder="z.B. 2345678" />
-  </div>
-  <div>
-    <label>Read API Key</label>
-    <input id="apiKey" type="text" placeholder="z.B. ABC123XYZ..." />
-  </div>
-  <button onclick="saveAndLoad()">Laden</button>
-</div>
-
+<div class="section-title">Echtzeit</div>
 <div class="cards">
   <div class="card">
     <div class="card-label"><span class="card-dot dot-pv"></span>PV-Leistung</div>
@@ -254,13 +213,37 @@
     <div class="card-label"><span class="card-dot dot-ev"></span>Eigenverbrauch</div>
     <div class="card-value val-ev"><span id="v-ev">—</span><span class="card-unit">W</span></div>
   </div>
+</div>
+
+<div class="section-title">Heute</div>
+<div class="cards">
   <div class="card">
     <div class="card-label"><span class="card-dot dot-day"></span>Tagesertrag WR</div>
     <div class="card-value val-day"><span id="v-yield">—</span><span class="card-unit">kWh</span></div>
   </div>
   <div class="card">
-    <div class="card-label"><span class="card-dot" style="background:#378ADD"></span>Tagesbezug Netz</div>
-    <div class="card-value val-neu"><span id="v-grid-day">—</span><span class="card-unit">kWh</span></div>
+    <div class="card-label"><span class="card-dot dot-grid"></span>Tagesverbrauch</div>
+    <div class="card-value val-neu"><span id="v-verbrauch">—</span><span class="card-unit">kWh</span></div>
+  </div>
+  <div class="card">
+    <div class="card-label"><span class="card-dot dot-red"></span>Netzbezug heute</div>
+    <div class="card-value val-red"><span id="v-netzbezug">—</span><span class="card-unit">kWh</span></div>
+  </div>
+  <div class="card">
+    <div class="card-label"><span class="card-dot dot-ev"></span>Eigenverbrauch heute</div>
+    <div class="card-value val-ev"><span id="v-ev-day">—</span><span class="card-unit">kWh</span></div>
+  </div>
+  <div class="card">
+    <div class="card-label"><span class="card-dot dot-teal"></span>Einsparung heute</div>
+    <div class="card-value val-teal"><span id="v-einsparung">—</span><span class="card-unit">€</span></div>
+  </div>
+</div>
+
+<div class="section-title">Gesamt</div>
+<div class="cards">
+  <div class="card">
+    <div class="card-label"><span class="card-dot dot-gray"></span>Gesamtertrag WR</div>
+    <div class="card-value val-neu"><span id="v-total">—</span><span class="card-unit">kWh</span></div>
   </div>
 </div>
 
@@ -286,21 +269,10 @@
 </div>
 
 <script>
-const TS_BASE = 'https://api.thingspeak.com/channels';
-let channelId = '3386295';
-let apiKey    = 'ZDAL2S7P2M5TOEXH';
+const TS_BASE   = 'https://api.thingspeak.com/channels';
+const channelId = 'DEINE_CHANNEL_ID';
+const apiKey    = 'DEIN_READ_API_KEY';
 let lineChart, donutChart;
-
-document.getElementById('channelId').value = channelId;
-document.getElementById('apiKey').value    = apiKey;
-
-function saveAndLoad() {
-  channelId = document.getElementById('channelId').value.trim();
-  apiKey    = document.getElementById('apiKey').value.trim();
-  localStorage.setItem('ts_channel', channelId);
-  localStorage.setItem('ts_key', apiKey);
-  fetchData();
-}
 
 function fmtTime(iso) {
   const d = new Date(iso);
@@ -308,48 +280,62 @@ function fmtTime(iso) {
 }
 
 async function fetchData() {
-  if (!channelId || !apiKey) {
-    document.getElementById('last-update').textContent = 'Bitte Channel ID und API Key eingeben';
-    return;
-  }
   try {
-    const url = `${TS_BASE}/${channelId}/feeds.json?api_key=${apiKey}&results=60`;
-    const res = await fetch(url);
+    const url  = `${TS_BASE}/${channelId}/feeds.json?api_key=${apiKey}&results=60`;
+    const res  = await fetch(url);
     const json = await res.json();
     const feeds = json.feeds;
     if (!feeds || feeds.length === 0) throw new Error('Keine Daten');
 
-    const latest = feeds[feeds.length - 1];
-    const pv   = parseFloat(latest.field1) || 0;
-    const grid = parseFloat(latest.field2) || 0;
-    const ev   = parseFloat(latest.field3) || 0;
-    const yld  = parseFloat(latest.field4) || 0;
-    const gday = parseFloat(latest.field5) || 0;
+    const latest     = feeds[feeds.length - 1];
+    const pv         = parseFloat(latest.field1) || 0;
+    const grid       = parseFloat(latest.field2) || 0;
+    const ev         = parseFloat(latest.field3) || 0;
+    const yld        = parseFloat(latest.field4) || 0; // Tagesertrag WR kWh
+    const verbrauch  = parseFloat(latest.field5) || 0; // Tagesverbrauch kWh
+    const yldTotal   = parseFloat(latest.field6) || 0; // Gesamtertrag WR kWh
+    const evDay      = parseFloat(latest.field7) || 0; // Eigenverbrauch heute kWh
+    const einsparung = parseFloat(latest.field8) || 0; // Einsparung heute €
 
-    document.getElementById('v-pv').textContent      = Math.round(pv);
-    document.getElementById('v-grid').textContent    = Math.round(Math.abs(grid));
-    document.getElementById('v-ev').textContent      = Math.round(ev);
-    document.getElementById('v-yield').textContent   = yld.toFixed(2);
-    document.getElementById('v-grid-day').textContent = gday.toFixed(2);
+    // Netzbezug = Verbrauch - Eigenverbrauch
+    const netzbezug = Math.max(0, verbrauch - evDay);
+
+    // Autarkiegrad = Eigenverbrauch / Tagesverbrauch
+    const autarkie = verbrauch > 0 ? Math.min((evDay / verbrauch) * 100, 100) : 0;
+
+    // Echtzeit
+    document.getElementById('v-pv').textContent   = Math.round(pv);
+    document.getElementById('v-grid').textContent  = Math.round(Math.abs(grid));
+    document.getElementById('v-ev').textContent    = Math.round(ev);
 
     const gridWrap = document.getElementById('v-grid-wrap');
     const gridHint = document.getElementById('v-grid-hint');
     if (grid >= 0) {
-      gridWrap.className = 'card-value val-grid-pos';
+      gridWrap.className   = 'card-value val-grid-pos';
       gridHint.textContent = '↑ Netzbezug';
     } else {
-      gridWrap.className = 'card-value val-grid-neg';
+      gridWrap.className   = 'card-value val-grid-neg';
       gridHint.textContent = '↓ Einspeisung';
     }
 
-    const autarkie = (yld + gday) > 0 ? Math.min((yld / (yld + gday)) * 100, 100) : 0;
+    // Heute
+    document.getElementById('v-yield').textContent      = yld.toFixed(2);
+    document.getElementById('v-verbrauch').textContent  = verbrauch.toFixed(2);
+    document.getElementById('v-netzbezug').textContent  = netzbezug.toFixed(2);
+    document.getElementById('v-ev-day').textContent     = evDay.toFixed(2);
+    document.getElementById('v-einsparung').textContent = einsparung.toFixed(2);
+
+    // Gesamt
+    document.getElementById('v-total').textContent = yldTotal.toFixed(0);
+
+    // Autarkie
     document.getElementById('autarkie-pct').textContent = Math.round(autarkie) + '%';
 
+    // Charts
     const labels  = feeds.map(f => fmtTime(f.created_at));
     const pvData  = feeds.map(f => parseFloat(f.field1) || 0);
     const griData = feeds.map(f => parseFloat(f.field2) || 0);
     const evData  = feeds.map(f => parseFloat(f.field3) || 0);
-
     updateLineChart(labels, pvData, griData, evData);
     updateDonut(autarkie);
 
@@ -370,9 +356,9 @@ function updateLineChart(labels, pv, grid, ev) {
     data: {
       labels,
       datasets: [
-        { label: 'PV (W)',          data: pv,   borderColor: '#EF9F27', backgroundColor: 'rgba(239,159,39,0.08)', borderWidth: 2, pointRadius: 0, tension: 0.3, fill: true },
-        { label: 'Netz (W)',        data: grid, borderColor: '#378ADD', backgroundColor: 'rgba(55,138,221,0.06)', borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false },
-        { label: 'Eigenverbrauch (W)', data: ev, borderColor: '#1D9E75', backgroundColor: 'rgba(29,158,117,0.06)', borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false },
+        { label: 'PV (W)',             data: pv,   borderColor: '#EF9F27', backgroundColor: 'rgba(239,159,39,0.08)', borderWidth: 2,   pointRadius: 0, tension: 0.3, fill: true  },
+        { label: 'Netz (W)',           data: grid, borderColor: '#378ADD', backgroundColor: 'rgba(55,138,221,0.06)', borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false },
+        { label: 'Eigenverbrauch (W)', data: ev,   borderColor: '#1D9E75', backgroundColor: 'rgba(29,158,117,0.06)',borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false },
       ]
     },
     options: {
@@ -384,7 +370,7 @@ function updateLineChart(labels, pv, grid, ev) {
       },
       scales: {
         x: { ticks: { color: '#888780', font: { size: 11 }, maxTicksLimit: 8 }, grid: { color: '#2c2c2a' } },
-        y: { ticks: { color: '#888780', font: { size: 11 } }, grid: { color: '#2c2c2a' } }
+        y: { ticks: { color: '#888780', font: { size: 11 } },                   grid: { color: '#2c2c2a' } }
       }
     }
   });
@@ -412,7 +398,7 @@ function updateDonut(autarkie) {
   });
 }
 
-if (channelId && apiKey) fetchData();
+fetchData();
 setInterval(fetchData, 30000);
 </script>
 </body>
