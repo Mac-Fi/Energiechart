@@ -419,8 +419,8 @@ async function fetchWeekData() {
           const first = feedsDay[0];
           const last  = feedsDay[feedsDay.length - 1];
           // Tagesertrag = letzter field4 - erster field4
-          const e = Math.max(0, (parseFloat(last.field4) || 0) - (parseFloat(first.field4) || 0)); // Ertrag kWh
-          const b = Math.max(0, (parseFloat(last.field5) || 0) - (parseFloat(first.field5) || 0)); // Netzbezug kWh
+          const e = parseFloat(last.field4) || 0; // Ertrag kWh — letzter Wert des Tages
+          const b = parseFloat(last.field5) || 0; // Netzbezug kWh — letzter Wert des Tages
           const v = e + b; // Tagesverbrauch
           const ev = Math.min(e, v); // Eigenverbrauch
           ertrag.push(parseFloat(e.toFixed(2)));
