@@ -84,22 +84,27 @@
     margin-top: 4px;
   }
 
-  .dot-pv    { background: #EF9F27; }
-  .dot-grid  { background: #378ADD; }
-  .dot-ev    { background: #1D9E75; }
-  .dot-day   { background: #7F77DD; }
-  .dot-red   { background: #E24B4A; }
-  .dot-teal  { background: #20B2AA; }
-  .dot-gray  { background: #888780; }
+  .dot-pv      { background: #EF9F27; }
+  .dot-grid    { background: #378ADD; }
+  .dot-ev      { background: #1D9E75; }
+  .dot-day     { background: #EF9F27; }
+  .dot-red     { background: #E24B4A; }
+  .dot-teal    { background: #20B2AA; }
+  .dot-gray    { background: #888780; }
+  .dot-neu     { background: #e8e8e6; }
+  .dot-bat     { background: #F97316; }
+  .dot-batpower{ background: #A78BFA; }
 
   .val-pv       { color: #EF9F27; }
-  .val-grid-pos { color: #378ADD; }
+  .val-grid-pos { color: #E24B4A; }
   .val-grid-neg { color: #1D9E75; }
   .val-ev       { color: #1D9E75; }
-  .val-day      { color: #7F77DD; }
+  .val-day      { color: #EF9F27; }
   .val-neu      { color: #e8e8e6; }
   .val-red      { color: #E24B4A; }
   .val-teal     { color: #20B2AA; }
+  .val-bat      { color: #F97316; }
+  .val-batpower { color: #A78BFA; }
 
   .section-title {
     font-size: 11px;
@@ -205,7 +210,7 @@
     <div class="card-value val-pv"><span id="v-pv">—</span><span class="card-unit">W</span></div>
   </div>
   <div class="card">
-    <div class="card-label"><span class="card-dot dot-grid"></span>Netzleistung</div>
+    <div class="card-label"><span class="card-dot dot-red" id="dot-grid"></span>Netzleistung</div>
     <div class="card-value" id="v-grid-wrap"><span id="v-grid">—</span><span class="card-unit">W</span></div>
     <div class="card-sub" id="v-grid-hint"></div>
   </div>
@@ -213,16 +218,26 @@
     <div class="card-label"><span class="card-dot dot-ev"></span>Eigenverbrauch</div>
     <div class="card-value val-ev"><span id="v-ev">—</span><span class="card-unit">W</span></div>
   </div>
+  <div class="card" id="card-soc" style="display:none;">
+    <div class="card-label"><span class="card-dot dot-bat"></span>Batterie SOC</div>
+    <div class="card-value val-bat"><span id="v-soc">—</span><span class="card-unit">%</span></div>
+    <div class="card-sub" id="v-soc-hint"></div>
+  </div>
+  <div class="card" id="card-bat-power" style="display:none;">
+    <div class="card-label"><span class="card-dot dot-batpower"></span>Batterieleistung</div>
+    <div class="card-value" id="v-bat-wrap"><span id="v-bat-power">—</span><span class="card-unit">W</span></div>
+    <div class="card-sub" id="v-bat-hint"></div>
+  </div>
 </div>
 
 <div class="section-title">Heute</div>
 <div class="cards">
   <div class="card">
-    <div class="card-label"><span class="card-dot dot-day"></span>Tagesertrag WR</div>
-    <div class="card-value val-day"><span id="v-yield">—</span><span class="card-unit">kWh</span></div>
+    <div class="card-label"><span class="card-dot dot-pv"></span>Tagesertrag WR</div>
+    <div class="card-value val-pv"><span id="v-yield">—</span><span class="card-unit">kWh</span></div>
   </div>
   <div class="card">
-    <div class="card-label"><span class="card-dot dot-grid"></span>Tagesverbrauch</div>
+    <div class="card-label"><span class="card-dot dot-neu"></span>Tagesverbrauch</div>
     <div class="card-value val-neu"><span id="v-verbrauch">—</span><span class="card-unit">kWh</span></div>
   </div>
   <div class="card">
@@ -238,8 +253,8 @@
 <div class="section-title">Gesamt</div>
 <div class="cards">
   <div class="card">
-    <div class="card-label"><span class="card-dot dot-gray"></span>Gesamtertrag WR</div>
-    <div class="card-value val-neu"><span id="v-total">—</span><span class="card-unit">kWh</span></div>
+    <div class="card-label"><span class="card-dot dot-pv"></span>Gesamtertrag WR</div>
+    <div class="card-value val-pv"><span id="v-total">—</span><span class="card-unit">kWh</span></div>
   </div>
   <div class="card">
     <div class="card-label"><span class="card-dot dot-teal"></span>Gesamteinsparung</div>
@@ -330,12 +345,15 @@ async function fetchData() {
 
     const gridWrap = document.getElementById('v-grid-wrap');
     const gridHint = document.getElementById('v-grid-hint');
+    const gridDot  = document.getElementById('dot-grid');
     if (grid >= 0) {
-      gridWrap.className   = 'card-value val-grid-pos';
-      gridHint.textContent = '↑ Netzbezug';
+      gridWrap.className    = 'card-value val-grid-pos';
+      gridDot.style.background = '#E24B4A';
+      gridHint.textContent  = '↑ Netzbezug';
     } else {
-      gridWrap.className   = 'card-value val-grid-neg';
-      gridHint.textContent = '↓ Einspeisung';
+      gridWrap.className    = 'card-value val-grid-neg';
+      gridDot.style.background = '#1D9E75';
+      gridHint.textContent  = '↓ Einspeisung';
     }
 
     // Heute
@@ -351,6 +369,31 @@ async function fetchData() {
 
     // Autarkie
     document.getElementById('autarkie-pct').textContent = Math.round(autarkie) + '%';
+
+    // Batterie (Field 6 = SOC, Field 7 = Leistung) — nur anzeigen wenn Daten vorhanden
+    const soc      = parseFloat(latest.field6);
+    const batPower = parseFloat(latest.field7);
+    if (!isNaN(soc)) {
+      document.getElementById('card-soc').style.display      = '';
+      document.getElementById('card-bat-power').style.display = '';
+      document.getElementById('v-soc').textContent = Math.round(soc);
+      document.getElementById('v-soc-hint').textContent =
+        soc >= 80 ? '🟢 Voll' : soc >= 30 ? '🟡 Mittel' : '🔴 Niedrig';
+
+      const batWrap = document.getElementById('v-bat-wrap');
+      const batHint = document.getElementById('v-bat-hint');
+      document.getElementById('v-bat-power').textContent = Math.round(Math.abs(batPower));
+      if (batPower > 0) {
+        batWrap.style.color = '#1D9E75';
+        batHint.textContent = '↑ Laden';
+      } else if (batPower < 0) {
+        batWrap.style.color = '#F97316';
+        batHint.textContent = '↓ Entladen';
+      } else {
+        batWrap.style.color = '#888780';
+        batHint.textContent = '— Standby';
+      }
+    }
 
     // Charts — Eigenverbrauch aus PV und Netz berechnen
     const labels  = feeds.map(f => fmtTime(f.created_at));
