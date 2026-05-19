@@ -276,9 +276,19 @@
 </div>
 
 <script>
-const TS_BASE   = 'https://api.thingspeak.com/channels';
-const channelId = '3386295';
-const apiKey    = 'ZDAL2S7P2M5TOEXH';
+// =============================================
+// KONFIGURATION — hier alle Werte anpassen
+// =============================================
+const CONFIG = {
+  channelId:   '3386295',        // ThingSpeak Channel ID
+  apiKey:      'ZDAL2S7P2M5TOEXH', // ThingSpeak Read API Key
+  strompreis:  0.29,             // €/kWh
+  updateInterval: 30000,         // Aktualisierungsintervall in ms (min. 15000)
+  verlaufPunkte:  60,            // Anzahl Punkte im Verlaufschart
+};
+// =============================================
+
+const TS_BASE = 'https://api.thingspeak.com/channels';
 let lineChart, donutChart, barChart;
 
 function fmtTime(iso) {
@@ -288,21 +298,24 @@ function fmtTime(iso) {
 
 async function fetchData() {
   try {
-    const url  = `${TS_BASE}/${channelId}/feeds.json?api_key=${apiKey}&results=60`;
+    const url  = `${TS_BASE}/${CONFIG.channelId}/feeds.json?api_key=${CONFIG.apiKey}&results=${CONFIG.verlaufPunkte}`;
     const res  = await fetch(url);
     const json = await res.json();
     const feeds = json.feeds;
     if (!feeds || feeds.length === 0) throw new Error('Keine Daten');
 
-    const latest     = feeds[feeds.length - 1];
-    const pv         = parseFloat(latest.field1) || 0;
-    const grid       = parseFloat(latest.field2) || 0;
-    const ev         = parseFloat(latest.field3) || 0;
-    const yld        = parseFloat(latest.field4) || 0; // Tagesertrag WR kWh
-    const netzbezug  = parseFloat(latest.field5) || 0; // Netzbezug heute kWh
-    const yldTotal   = parseFloat(latest.field6) || 0; // Gesamtertrag WR kWh
+    const latest    = feeds[feeds.length - 1];
+    const pv        = parseFloat(latest.field1) || 0;
+    const grid      = parseFloat(latest.field2) || 0;
+    const yld       = parseFloat(latest.field3) || 0; // Tagesertrag WR kWh
+    const netzbezug = parseFloat(latest.field4) || 0; // Netzbezug heute kWh
+    const yldTotal  = parseFloat(latest.field5) || 0; // Gesamtertrag WR kWh
+
+    // Eigenverbrauch direkt berechnen aus PV und Netz
+    const ev = Math.max(0, pv - Math.max(0, -grid));
+
     // Einsparung = Tagesertrag × Strompreis
-    const einsparung = yld * 0.29;
+    const einsparung = yld * CONFIG.strompreis;
 
     // Tagesverbrauch = Ertrag + Netzbezug
     const verbrauch = yld + netzbezug;
@@ -332,18 +345,18 @@ async function fetchData() {
     document.getElementById('v-einsparung').textContent = einsparung.toFixed(2);
 
     // Gesamt
-    const gesamteinsparung = yldTotal * 0.29;
+    const gesamteinsparung = yldTotal * CONFIG.strompreis;
     document.getElementById('v-total').textContent            = yldTotal.toFixed(0);
     document.getElementById('v-total-einsparung').textContent = gesamteinsparung.toFixed(0);
 
     // Autarkie
     document.getElementById('autarkie-pct').textContent = Math.round(autarkie) + '%';
 
-    // Charts
+    // Charts — Eigenverbrauch aus PV und Netz berechnen
     const labels  = feeds.map(f => fmtTime(f.created_at));
     const pvData  = feeds.map(f => parseFloat(f.field1) || 0);
     const griData = feeds.map(f => parseFloat(f.field2) || 0);
-    const evData  = feeds.map(f => parseFloat(f.field3) || 0);
+    const evData  = feeds.map(f => Math.max(0, (parseFloat(f.field1) || 0) - Math.max(0, -(parseFloat(f.field2) || 0))));
     updateLineChart(labels, pvData, griData, evData);
     updateDonut(autarkie);
     fetchWeekData();
@@ -400,7 +413,7 @@ async function fetchWeekData() {
       const start   = dateStr + 'T00:00:00Z';
       const end     = dateStr + 'T23:59:59Z';
 
-      const url  = `${TS_BASE}/${channelId}/feeds.json?api_key=${apiKey}&start=${start}&end=${end}&results=1&timescale=daily`;
+      const url  = `${TS_BASE}/${CONFIG.channelId}/feeds.json?api_key=${CONFIG.apiKey}&start=${start}&end=${end}&results=1&timescale=daily`;
       const res  = await fetch(url);
       const json = await res.json();
       const feeds = json.feeds;
@@ -410,7 +423,7 @@ async function fetchWeekData() {
       if (feeds && feeds.length > 0) {
         // Letzten Wert des Tages = Tagesendstand
         // Ersten Wert des Tages holen für Differenz
-        const urlDay = `${TS_BASE}/${channelId}/feeds.json?api_key=${apiKey}&start=${start}&end=${end}&results=1000`;
+        const urlDay = `${TS_BASE}/${CONFIG.channelId}/feeds.json?api_key=${CONFIG.apiKey}&start=${start}&end=${end}&results=1000`;
         const resDay = await fetch(urlDay);
         const jsonDay = await resDay.json();
         const feedsDay = jsonDay.feeds;
@@ -419,8 +432,8 @@ async function fetchWeekData() {
           const first = feedsDay[0];
           const last  = feedsDay[feedsDay.length - 1];
           // Tagesertrag = letzter field4 - erster field4
-          const e = parseFloat(last.field4) || 0; // Ertrag kWh — letzter Wert des Tages
-          const b = parseFloat(last.field5) || 0; // Netzbezug kWh — letzter Wert des Tages
+          const e = parseFloat(last.field3) || 0; // Ertrag kWh — letzter Wert des Tages
+          const b = parseFloat(last.field4) || 0; // Netzbezug kWh — letzter Wert des Tages
           const v = e + b; // Tagesverbrauch
           const ev = Math.min(e, v); // Eigenverbrauch
           ertrag.push(parseFloat(e.toFixed(2)));
@@ -494,7 +507,7 @@ function updateDonut(autarkie) {
 }
 
 fetchData();
-setInterval(fetchData, 30000);
+setInterval(fetchData, CONFIG.updateInterval);
 </script>
 </body>
 </html>
