@@ -74,7 +74,7 @@
   .dot-pv      { background: #EF9F27; }
   .dot-red     { background: #E24B4A; }
   .dot-ev      { background: #1D9E75; }
-  .dot-neu     { background: #e8e8e6; }
+  .dot-blue    { background: #378ADD; }
   .dot-teal    { background: #20B2AA; }
   .dot-bat     { background: #F97316; }
   .dot-batpow  { background: #A78BFA; }
@@ -82,7 +82,7 @@
   .val-pv      { color: #EF9F27; }
   .val-red     { color: #E24B4A; }
   .val-ev      { color: #1D9E75; }
-  .val-neu     { color: #e8e8e6; }
+  .val-blue    { color: #378ADD; }
   .val-teal    { color: #20B2AA; }
   .val-bat     { color: #F97316; }
   .val-batpow  { color: #A78BFA; }
@@ -158,8 +158,8 @@
     <div class="card-sub" id="v-grid-hint"></div>
   </div>
   <div class="card">
-    <div class="card-label"><span class="card-dot dot-neu"></span>Gesamtverbrauch</div>
-    <div class="card-value val-neu"><span id="v-ev">—</span><span class="card-unit">W</span></div>
+    <div class="card-label"><span class="card-dot dot-blue"></span>Gesamtverbrauch</div>
+    <div class="card-value val-blue"><span id="v-ev">—</span><span class="card-unit">W</span></div>
   </div>
   <div class="card" id="card-soc" style="display:none;">
     <div class="card-label"><span class="card-dot dot-bat"></span>Batterie SOC</div>
@@ -180,12 +180,12 @@
     <div class="card-value val-pv"><span id="v-yield">—</span><span class="card-unit">kWh</span></div>
   </div>
   <div class="card">
-    <div class="card-label"><span class="card-dot dot-neu"></span>Tagesverbrauch</div>
-    <div class="card-value val-neu"><span id="v-verbrauch">—</span><span class="card-unit">kWh</span></div>
-  </div>
-  <div class="card">
     <div class="card-label"><span class="card-dot dot-red"></span>Netzbezug heute</div>
     <div class="card-value val-red"><span id="v-netzbezug">—</span><span class="card-unit">kWh</span></div>
+  </div>
+  <div class="card">
+    <div class="card-label"><span class="card-dot dot-blue"></span>Tagesverbrauch</div>
+    <div class="card-value val-blue"><span id="v-verbrauch">—</span><span class="card-unit">kWh</span></div>
   </div>
   <div class="card">
     <div class="card-label"><span class="card-dot dot-teal"></span>Einsparung heute</div>
@@ -437,7 +437,7 @@ function updateLineChart(labels, pv, grid, cons) {
       datasets: [
         { label: 'PV (W)',             data: pv,   borderColor: '#EF9F27', backgroundColor: 'rgba(239,159,39,0.08)', borderWidth: 2,   pointRadius: 0, tension: 0.3, fill: true  },
         { label: 'Netz (W)',           data: grid, borderColor: '#E24B4A', backgroundColor: 'rgba(226,75,74,0.06)',  borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false },
-        { label: 'Gesamtverbrauch (W)', data: cons, borderColor: '#e8e8e6', backgroundColor: 'rgba(232,232,230,0.04)', borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false },
+        { label: 'Gesamtverbrauch (W)', data: cons, borderColor: '#378ADD', backgroundColor: 'rgba(55,138,221,0.06)', borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false },
       ]
     },
     options: {
