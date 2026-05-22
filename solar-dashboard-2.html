@@ -260,25 +260,43 @@ function todayLocalISO() {
   return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 }
 
-// Ersten Datenpunkt des heutigen Tages holen
+// Letzten Datenpunkt von gestern holen als Tagesstartwert
 async function fetchDayStart() {
-  const dateStr  = todayLocalISO();
-  // Lokale Mitternacht in UTC umrechnen
-  const offsetMs  = new Date().getTimezoneOffset() * 60000;
-  const startUTC  = new Date(new Date(dateStr + 'T00:00:00').getTime() + offsetMs * -1);
-  const endUTC    = new Date(new Date(dateStr + 'T23:59:59').getTime() + offsetMs * -1);
+  const offsetMs   = new Date().getTimezoneOffset() * 60000;
+  const yesterday  = new Date(Date.now() - 86400000); // gestern
+  const pad = n => n.toString().padStart(2, '0');
+  const yStr = `${yesterday.getFullYear()}-${pad(yesterday.getMonth()+1)}-${pad(yesterday.getDate())}`;
 
-  const url = `${TS_BASE}/${CONFIG.channelId}/feeds.json?api_key=${CONFIG.apiKey}&start=${startUTC.toISOString()}&end=${endUTC.toISOString()}&results=1`;
+  // Letzten Wert von gestern (lokale Zeit in UTC)
+  const endLocal  = new Date(yStr + 'T23:59:59');
+  const endUTC    = new Date(endLocal.getTime() + offsetMs * -1);
+  const startLocal = new Date(yStr + 'T00:00:00');
+  const startUTC   = new Date(startLocal.getTime() + offsetMs * -1);
+
+  const url = `${TS_BASE}/${CONFIG.channelId}/feeds.json?api_key=${CONFIG.apiKey}&start=${startUTC.toISOString()}&end=${endUTC.toISOString()}&results=1000`;
   const res  = await fetch(url);
   const json = await res.json();
-  console.log('fetchDayStart URL:', url);
-  console.log('fetchDayStart feeds:', json.feeds ? json.feeds.length : 0, json.feeds ? json.feeds[0] : null);
+
   if (json.feeds && json.feeds.length > 0) {
-    dayStartYield = parseFloat(json.feeds[0].field3) || 0;
-    dayStartGrid  = parseFloat(json.feeds[0].field4) || 0;
-    console.log('DayStart geladen:', dayStartYield, dayStartGrid);
+    const last = json.feeds[json.feeds.length - 1];
+    dayStartYield = parseFloat(last.field3) || 0;
+    dayStartGrid  = parseFloat(last.field4) || 0;
+    console.log('DayStart (letzter Wert gestern):', dayStartYield, dayStartGrid, last.created_at);
   } else {
-    console.log('DayStart: keine Daten gefunden für', dateStr, 'start:', startUTC.toISOString());
+    // Kein gestriger Wert — ersten heutigen Wert nehmen
+    const todayStr  = todayLocalISO();
+    const startTodayUTC = new Date(new Date(todayStr + 'T00:00:00').getTime() + offsetMs * -1);
+    const endTodayUTC   = new Date(new Date(todayStr + 'T23:59:59').getTime() + offsetMs * -1);
+    const url2 = `${TS_BASE}/${CONFIG.channelId}/feeds.json?api_key=${CONFIG.apiKey}&start=${startTodayUTC.toISOString()}&end=${endTodayUTC.toISOString()}&results=1`;
+    const res2 = await fetch(url2);
+    const json2 = await res2.json();
+    if (json2.feeds && json2.feeds.length > 0) {
+      dayStartYield = parseFloat(json2.feeds[0].field3) || 0;
+      dayStartGrid  = parseFloat(json2.feeds[0].field4) || 0;
+      console.log('DayStart (erster Wert heute):', dayStartYield, dayStartGrid);
+    } else {
+      console.log('DayStart: keine Daten gefunden');
+    }
   }
 }
 
