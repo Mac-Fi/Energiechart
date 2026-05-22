@@ -262,26 +262,23 @@ function todayLocalISO() {
 
 // Ersten Datenpunkt des heutigen Tages holen
 async function fetchDayStart() {
-  const dateStr = todayLocalISO();
-  // Startzeitpunkt in UTC umrechnen (MEZ = UTC+2 im Sommer, UTC+1 im Winter)
+  const dateStr  = todayLocalISO();
+  // Lokale Mitternacht in UTC umrechnen
   const offsetMs  = new Date().getTimezoneOffset() * 60000;
-  const startLocal = new Date(dateStr + 'T00:00:00');
-  const startUTC   = new Date(startLocal.getTime() - offsetMs);
-  const endLocal   = new Date(dateStr + 'T23:59:59');
-  const endUTC     = new Date(endLocal.getTime() - offsetMs);
+  const startUTC  = new Date(new Date(dateStr + 'T00:00:00').getTime() + offsetMs * -1);
+  const endUTC    = new Date(new Date(dateStr + 'T23:59:59').getTime() + offsetMs * -1);
 
-  const start = startUTC.toISOString();
-  const end   = endUTC.toISOString();
-
-  const url = `${TS_BASE}/${CONFIG.channelId}/feeds.json?api_key=${CONFIG.apiKey}&start=${start}&end=${end}&results=1`;
+  const url = `${TS_BASE}/${CONFIG.channelId}/feeds.json?api_key=${CONFIG.apiKey}&start=${startUTC.toISOString()}&end=${endUTC.toISOString()}&results=1`;
   const res  = await fetch(url);
   const json = await res.json();
+  console.log('fetchDayStart URL:', url);
+  console.log('fetchDayStart feeds:', json.feeds ? json.feeds.length : 0, json.feeds ? json.feeds[0] : null);
   if (json.feeds && json.feeds.length > 0) {
     dayStartYield = parseFloat(json.feeds[0].field3) || 0;
     dayStartGrid  = parseFloat(json.feeds[0].field4) || 0;
     console.log('DayStart geladen:', dayStartYield, dayStartGrid);
   } else {
-    console.log('DayStart: keine Daten gefunden');
+    console.log('DayStart: keine Daten gefunden für', dateStr, 'start:', startUTC.toISOString());
   }
 }
 
@@ -309,8 +306,6 @@ async function fetchData() {
     // Tageswerte als Differenz
     const yld       = dayStartYield !== null ? Math.max(0, yldTotal  - dayStartYield) : 0;
     const netzbezug = dayStartGrid  !== null ? Math.max(0, gridTotal - dayStartGrid)  : 0;
-   console.log('yldTotal:', yldTotal, 'dayStartYield:', dayStartYield, 'yld:', yld);
-   console.log('gridTotal:', gridTotal, 'dayStartGrid:', dayStartGrid, 'netzbezug:', netzbezug);
 
     // Gesamtverbrauch Echtzeit = PV + Netz (Netz kann negativ sein bei Einspeisung)
     const totalConsumption = Math.max(0, pv + grid);
