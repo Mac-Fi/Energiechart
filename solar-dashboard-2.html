@@ -253,21 +253,35 @@ function fmtTime(iso) {
   return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
 }
 
-function todayUTC() {
+function todayLocalISO() {
   const d = new Date();
-  return d.toISOString().split('T')[0];
+  // Lokales Datum als ISO-String ohne Zeitzone
+  const pad = n => n.toString().padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 }
 
 // Ersten Datenpunkt des heutigen Tages holen
 async function fetchDayStart() {
-  const start = todayUTC() + 'T00:00:00Z';
-  const end   = todayUTC() + 'T23:59:59Z';
-  const url   = `${TS_BASE}/${CONFIG.channelId}/feeds.json?api_key=${CONFIG.apiKey}&start=${start}&end=${end}&results=1`;
-  const res   = await fetch(url);
-  const json  = await res.json();
+  const dateStr = todayLocalISO();
+  // Startzeitpunkt in UTC umrechnen (MEZ = UTC+2 im Sommer, UTC+1 im Winter)
+  const offsetMs  = new Date().getTimezoneOffset() * 60000;
+  const startLocal = new Date(dateStr + 'T00:00:00');
+  const startUTC   = new Date(startLocal.getTime() - offsetMs);
+  const endLocal   = new Date(dateStr + 'T23:59:59');
+  const endUTC     = new Date(endLocal.getTime() - offsetMs);
+
+  const start = startUTC.toISOString();
+  const end   = endUTC.toISOString();
+
+  const url = `${TS_BASE}/${CONFIG.channelId}/feeds.json?api_key=${CONFIG.apiKey}&start=${start}&end=${end}&results=1`;
+  const res  = await fetch(url);
+  const json = await res.json();
   if (json.feeds && json.feeds.length > 0) {
     dayStartYield = parseFloat(json.feeds[0].field3) || 0;
     dayStartGrid  = parseFloat(json.feeds[0].field4) || 0;
+    console.log('DayStart geladen:', dayStartYield, dayStartGrid);
+  } else {
+    console.log('DayStart: keine Daten gefunden');
   }
 }
 
@@ -395,9 +409,13 @@ async function fetchWeekData() {
     for (let i = 6; i >= 0; i--) {
       const date    = new Date();
       date.setDate(date.getDate() - i);
-      const dateStr = date.toISOString().split('T')[0];
-      const start   = dateStr + 'T00:00:00Z';
-      const end     = dateStr + 'T23:59:59Z';
+      const pad     = n => n.toString().padStart(2, '0');
+      const dateStr = `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}`;
+      const offsetMs   = date.getTimezoneOffset() * 60000;
+      const startLocal = new Date(dateStr + 'T00:00:00');
+      const endLocal   = new Date(dateStr + 'T23:59:59');
+      const start      = new Date(startLocal.getTime() - offsetMs).toISOString();
+      const end        = new Date(endLocal.getTime()   - offsetMs).toISOString();
       labels.push(date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }));
 
       const urlDay = `${TS_BASE}/${CONFIG.channelId}/feeds.json?api_key=${CONFIG.apiKey}&start=${start}&end=${end}&results=1000`;
