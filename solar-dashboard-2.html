@@ -309,6 +309,8 @@ async function fetchData() {
     // Tageswerte als Differenz
     const yld       = dayStartYield !== null ? Math.max(0, yldTotal  - dayStartYield) : 0;
     const netzbezug = dayStartGrid  !== null ? Math.max(0, gridTotal - dayStartGrid)  : 0;
+   console.log('yldTotal:', yldTotal, 'dayStartYield:', dayStartYield, 'yld:', yld);
+   console.log('gridTotal:', gridTotal, 'dayStartGrid:', dayStartGrid, 'netzbezug:', netzbezug);
 
     // Gesamtverbrauch Echtzeit = PV + Netz (Netz kann negativ sein bei Einspeisung)
     const totalConsumption = Math.max(0, pv + grid);
