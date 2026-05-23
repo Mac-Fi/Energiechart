@@ -448,8 +448,10 @@ async function fetchWeekData() {
         }
       } else {
         // Vergangene Tage: erster und letzter Datenpunkt des Tages
+        // Erster: results=1 ab Tagesbeginn
+        // Letzter: results=1 ab Tagesende rückwärts (ThingSpeak: end + results von hinten)
         const urlFirst = `${TS_BASE}/${CONFIG.channelId}/feeds.json?api_key=${CONFIG.apiKey}&start=${startUTC}&end=${endUTC}&results=1`;
-        const urlLast  = `${TS_BASE}/${CONFIG.channelId}/feeds.json?api_key=${CONFIG.apiKey}&start=${startUTC}&end=${endUTC}&results=1&order=desc`;
+        const urlLast  = `${TS_BASE}/${CONFIG.channelId}/feeds.json?api_key=${CONFIG.apiKey}&end=${endUTC}&results=1`;
 
         const [resFirst, resLast] = await Promise.all([fetch(urlFirst), fetch(urlLast)]);
         const [jsonFirst, jsonLast] = await Promise.all([resFirst.json(), resLast.json()]);
