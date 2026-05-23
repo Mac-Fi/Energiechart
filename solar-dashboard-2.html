@@ -459,7 +459,7 @@ async function fetchWeekData() {
         if (jsonFirst.feeds && jsonFirst.feeds.length > 0 &&
             jsonLast.feeds  && jsonLast.feeds.length  > 0) {
           const first = jsonFirst.feeds[0];
-          const last  = jsonLast.feeds[0];
+          const last  = jsonLast.feeds[jsonLast.feeds.length - 1];
           e = Math.max(0, (parseFloat(last.field3) || 0) - (parseFloat(first.field3) || 0));
           b = Math.max(0, (parseFloat(last.field4) || 0) - (parseFloat(first.field4) || 0));
         }
