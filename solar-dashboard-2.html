@@ -252,15 +252,26 @@ let currentDay    = -1;
 const todayKey = new Date().toISOString().split('T')[0];
 let peakYield     = parseFloat(localStorage.getItem('peak_yield_'     + todayKey) || '0');
 let peakNetzbezug = parseFloat(localStorage.getItem('peak_netzbezug_' + todayKey) || '0');
+let peakYldTotal  = parseFloat(localStorage.getItem('peak_yldtotal') || '0');
 
 // Beim ersten Laden: höchsten heutigen Wert aus ThingSpeak holen
 async function initPeaks() {
-  if (peakYield > 0 && peakNetzbezug > 0) return; // bereits aus localStorage geladen
   try {
-    const offsetMs  = new Date().getTimezoneOffset() * 60000;
-    const dateStr   = todayLocalISO();
-    const startUTC  = new Date(new Date(dateStr + 'T00:00:00').getTime() - offsetMs).toISOString();
-    const url = `${TS_BASE}/${CONFIG.channelId}/feeds.json?api_key=${CONFIG.apiKey}&end=${new Date().toISOString()}&results=500`;
+    // Gesamtertrag Maximum aus Summary API — einmaliger kleiner Request
+    if (peakYldTotal === 0) {
+      const urlSummary = `${TS_BASE}/${CONFIG.channelId}/fields/3/summary.json?api_key=${CONFIG.apiKey}`;
+      const resSummary = await fetch(urlSummary);
+      const jsonSummary = await resSummary.json();
+      if (jsonSummary.maximum) {
+        peakYldTotal = parseFloat(jsonSummary.maximum) || 0;
+        localStorage.setItem('peak_yldtotal', peakYldTotal);
+        console.log('peakYldTotal aus Summary:', peakYldTotal);
+      }
+    }
+
+    // Heutige Peaks aus den letzten 500 Einträgen initialisieren
+    if (peakYield > 0 && peakNetzbezug > 0) return;
+    const url  = `${TS_BASE}/${CONFIG.channelId}/feeds.json?api_key=${CONFIG.apiKey}&end=${new Date().toISOString()}&results=500`;
     const res  = await fetch(url);
     const json = await res.json();
     if (json.feeds && json.feeds.length > 0 && dayStartYield !== null) {
@@ -270,7 +281,7 @@ async function initPeaks() {
       peakNetzbezug = Math.max(0, maxField4 - dayStartGrid);
       localStorage.setItem('peak_yield_'     + todayKey, peakYield);
       localStorage.setItem('peak_netzbezug_' + todayKey, peakNetzbezug);
-      console.log('Peaks aus ThingSpeak initialisiert:', peakYield, peakNetzbezug);
+      console.log('Peaks initialisiert:', peakYield, peakNetzbezug);
     }
   } catch(e) {
     console.error('Peak-Init Fehler:', e);
@@ -404,9 +415,15 @@ async function fetchData() {
     document.getElementById('v-netzbezug').textContent  = netzbezug.toFixed(2);
     document.getElementById('v-einsparung').textContent = einsparung.toFixed(2);
 
+    // Gesamtertrag — Peak-Tracking (schützt vor openDTU-Reset)
+    if (yldTotal > peakYldTotal) {
+      peakYldTotal = yldTotal;
+      localStorage.setItem('peak_yldtotal', peakYldTotal);
+    }
+
     // Gesamt
-    const gesamteinsparung = yldTotal * CONFIG.strompreis;
-    document.getElementById('v-total').textContent            = yldTotal.toFixed(0);
+    const gesamteinsparung = peakYldTotal * CONFIG.strompreis;
+    document.getElementById('v-total').textContent            = peakYldTotal.toFixed(0);
     document.getElementById('v-total-einsparung').textContent = gesamteinsparung.toFixed(0);
 
     // Autarkie
