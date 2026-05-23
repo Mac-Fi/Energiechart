@@ -456,6 +456,11 @@ async function fetchWeekData() {
         const [resFirst, resLast] = await Promise.all([fetch(urlFirst), fetch(urlLast)]);
         const [jsonFirst, jsonLast] = await Promise.all([resFirst.json(), resLast.json()]);
 
+        console.log('Tag:', dateStr);
+        console.log('startUTC:', startUTC, 'endUTC:', endUTC);
+        console.log('First feeds:', jsonFirst.feeds ? jsonFirst.feeds.length : 0, jsonFirst.feeds ? jsonFirst.feeds[0] : null);
+        console.log('Last feeds:', jsonLast.feeds ? jsonLast.feeds.length : 0, jsonLast.feeds ? jsonLast.feeds[jsonLast.feeds.length-1] : null);
+
         if (jsonFirst.feeds && jsonFirst.feeds.length > 0 &&
             jsonLast.feeds  && jsonLast.feeds.length  > 0) {
           const first = jsonFirst.feeds[0];
