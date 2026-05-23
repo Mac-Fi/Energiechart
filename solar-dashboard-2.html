@@ -480,15 +480,9 @@ async function fetchWeekData() {
       let e = 0, b = 0;
 
       if (isToday && dayStartYield !== null) {
-        // Heute: letzten aktuellen Wert holen, dayStart als Basis
-        const urlLast = `${TS_BASE}/${CONFIG.channelId}/feeds.json?api_key=${CONFIG.apiKey}&results=1`;
-        const resLast = await fetch(urlLast);
-        const jsonLast = await resLast.json();
-        if (jsonLast.feeds && jsonLast.feeds.length > 0) {
-          const last = jsonLast.feeds[jsonLast.feeds.length - 1];
-          e = Math.max(0, (parseFloat(last.field3) || 0) - dayStartYield);
-          b = Math.max(0, (parseFloat(last.field4) || 0) - dayStartGrid);
-        }
+        // Heute: Peak-Werte verwenden (schützt vor openDTU-Reset)
+        e = peakYield;
+        b = peakNetzbezug;
       } else {
         // Vergangene Tage: erster und letzter Datenpunkt des Tages
         // Erster: ab Tagesbeginn results=1
