@@ -428,43 +428,45 @@ async function fetchWeekData() {
       const pad     = n => n.toString().padStart(2, '0');
       const dateStr = `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}`;
       const offsetMs   = date.getTimezoneOffset() * 60000;
-      const startLocal = new Date(dateStr + 'T00:00:00');
-      const endLocal   = new Date(dateStr + 'T23:59:59');
-      const start      = new Date(startLocal.getTime() - offsetMs).toISOString();
-      const end        = new Date(endLocal.getTime()   - offsetMs).toISOString();
+      const startUTC   = new Date(new Date(dateStr + 'T00:00:00').getTime() - offsetMs).toISOString();
+      const endUTC     = new Date(new Date(dateStr + 'T23:59:59').getTime() - offsetMs).toISOString();
       labels.push(date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }));
 
       const isToday = (date.getDate() === todayDate);
 
-      const urlDay = `${TS_BASE}/${CONFIG.channelId}/feeds.json?api_key=${CONFIG.apiKey}&start=${start}&end=${end}&results=1000`;
-      const res    = await fetch(urlDay);
-      const json   = await res.json();
-      const feedsDay = json.feeds;
+      let e = 0, b = 0;
 
-      if (feedsDay && feedsDay.length > 0) {
-        const last = feedsDay[feedsDay.length - 1];
-
-        let e, b;
-        if (isToday && dayStartYield !== null) {
-          // Heute: letzter Wert von gestern als Basis (gleiche Logik wie "Heute"-Kacheln)
+      if (isToday && dayStartYield !== null) {
+        // Heute: letzten aktuellen Wert holen, dayStart als Basis
+        const urlLast = `${TS_BASE}/${CONFIG.channelId}/feeds.json?api_key=${CONFIG.apiKey}&results=1`;
+        const resLast = await fetch(urlLast);
+        const jsonLast = await resLast.json();
+        if (jsonLast.feeds && jsonLast.feeds.length > 0) {
+          const last = jsonLast.feeds[jsonLast.feeds.length - 1];
           e = Math.max(0, (parseFloat(last.field3) || 0) - dayStartYield);
           b = Math.max(0, (parseFloat(last.field4) || 0) - dayStartGrid);
-        } else {
-          // Vergangene Tage: Differenz erster/letzter Wert des Tages
-          const first = feedsDay[0];
+        }
+      } else {
+        // Vergangene Tage: erster und letzter Datenpunkt des Tages
+        const urlFirst = `${TS_BASE}/${CONFIG.channelId}/feeds.json?api_key=${CONFIG.apiKey}&start=${startUTC}&end=${endUTC}&results=1`;
+        const urlLast  = `${TS_BASE}/${CONFIG.channelId}/feeds.json?api_key=${CONFIG.apiKey}&start=${startUTC}&end=${endUTC}&results=1&order=desc`;
+
+        const [resFirst, resLast] = await Promise.all([fetch(urlFirst), fetch(urlLast)]);
+        const [jsonFirst, jsonLast] = await Promise.all([resFirst.json(), resLast.json()]);
+
+        if (jsonFirst.feeds && jsonFirst.feeds.length > 0 &&
+            jsonLast.feeds  && jsonLast.feeds.length  > 0) {
+          const first = jsonFirst.feeds[0];
+          const last  = jsonLast.feeds[0];
           e = Math.max(0, (parseFloat(last.field3) || 0) - (parseFloat(first.field3) || 0));
           b = Math.max(0, (parseFloat(last.field4) || 0) - (parseFloat(first.field4) || 0));
         }
-
-        const v = e + b;
-        ertrag.push(parseFloat(e.toFixed(2)));
-        bezug.push(parseFloat(b.toFixed(2)));
-        autarkieW.push(v > 0 ? parseFloat(Math.min((e / v) * 100, 100).toFixed(1)) : 0);
-      } else {
-        ertrag.push(0);
-        bezug.push(0);
-        autarkieW.push(0);
       }
+
+      const v = e + b;
+      ertrag.push(parseFloat(e.toFixed(2)));
+      bezug.push(parseFloat(b.toFixed(2)));
+      autarkieW.push(v > 0 ? parseFloat(Math.min((e / v) * 100, 100).toFixed(1)) : 0);
     }
     updateBarChart(labels, ertrag, bezug, autarkieW);
   } catch(e) {
