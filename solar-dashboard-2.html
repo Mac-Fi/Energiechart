@@ -257,15 +257,18 @@ let peakYldTotal  = parseFloat(localStorage.getItem('peak_yldtotal') || '0');
 // Beim ersten Laden: höchsten heutigen Wert aus ThingSpeak holen
 async function initPeaks() {
   try {
-    // Gesamtertrag Maximum aus Summary API — einmaliger kleiner Request
+    // Gesamtertrag Maximum aus letzten Einträgen — nur einmalig beim ersten Laden
     if (peakYldTotal === 0) {
-      const urlSummary = `${TS_BASE}/${CONFIG.channelId}/fields/3/summary.json?api_key=${CONFIG.apiKey}`;
-      const resSummary = await fetch(urlSummary);
-      const jsonSummary = await resSummary.json();
-      if (jsonSummary.maximum) {
-        peakYldTotal = parseFloat(jsonSummary.maximum) || 0;
-        localStorage.setItem('peak_yldtotal', peakYldTotal);
-        console.log('peakYldTotal aus Summary:', peakYldTotal);
+      const urlMax = `${TS_BASE}/${CONFIG.channelId}/feeds.json?api_key=${CONFIG.apiKey}&results=8000`;
+      const resMax = await fetch(urlMax);
+      const jsonMax = await resMax.json();
+      if (jsonMax.feeds && jsonMax.feeds.length > 0) {
+        const maxTotal = Math.max(...jsonMax.feeds.map(f => parseFloat(f.field3) || 0));
+        if (maxTotal > 0) {
+          peakYldTotal = maxTotal;
+          localStorage.setItem('peak_yldtotal', peakYldTotal);
+          console.log('peakYldTotal aus Feeds:', peakYldTotal);
+        }
       }
     }
 
