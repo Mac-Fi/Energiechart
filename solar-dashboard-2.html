@@ -247,6 +247,8 @@ let lineChart, donutChart, barChart;
 let dayStartYield = null; // erster Wert des Tages für Field 3
 let dayStartGrid  = null; // erster Wert des Tages für Field 4
 let currentDay    = -1;
+let peakYield     = 0;   // höchster Tagesertrag heute — bleibt bis Mitternacht
+let peakNetzbezug = 0;   // höchster Netzbezug heute — bleibt bis Mitternacht
 
 function fmtTime(iso) {
   const d = new Date(iso);
@@ -321,9 +323,20 @@ async function fetchData() {
     const yldTotal  = parseFloat(latest.field3) || 0; // Gesamtertrag WR kWh
     const gridTotal = parseFloat(latest.field4) || 0; // Gesamt-Netzbezug kWh
 
-    // Tageswerte als Differenz
-    const yld       = dayStartYield !== null ? Math.max(0, yldTotal  - dayStartYield) : 0;
-    const netzbezug = dayStartGrid  !== null ? Math.max(0, gridTotal - dayStartGrid)  : 0;
+    // Tageswerte als Differenz — nur nach oben aktualisieren (Peak-Tracking)
+    const yldRaw       = dayStartYield !== null ? Math.max(0, yldTotal  - dayStartYield) : 0;
+    const netzbezugRaw = dayStartGrid  !== null ? Math.max(0, gridTotal - dayStartGrid)  : 0;
+    if (yldRaw > peakYield)         peakYield     = yldRaw;
+    if (netzbezugRaw > peakNetzbezug) peakNetzbezug = netzbezugRaw;
+
+    // Bei Tageswechsel Peaks zurücksetzen
+    if (new Date().getDate() !== currentDay && currentDay !== -1) {
+      peakYield     = 0;
+      peakNetzbezug = 0;
+    }
+
+    const yld       = peakYield;
+    const netzbezug = peakNetzbezug;
 
     // Gesamtverbrauch Echtzeit = PV + Netz (Netz kann negativ sein bei Einspeisung)
     const totalConsumption = Math.max(0, pv + grid);
