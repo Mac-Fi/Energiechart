@@ -450,7 +450,7 @@ async function fetchWeekData() {
         // Vergangene Tage: erster und letzter Datenpunkt des Tages
         // Erster: ab Tagesbeginn results=1
         // Letzter: die letzten 100 Einträge vor Tagesende — letzter davon ist Tagesendwert
-        const urlFirst = `${TS_BASE}/${CONFIG.channelId}/feeds.json?api_key=${CONFIG.apiKey}&start=${startUTC}&end=${endUTC}&results=1`;
+        const urlFirst = `${TS_BASE}/${CONFIG.channelId}/feeds.json?api_key=${CONFIG.apiKey}&start=${startUTC}&results=1`;
         const urlLast  = `${TS_BASE}/${CONFIG.channelId}/feeds.json?api_key=${CONFIG.apiKey}&end=${endUTC}&results=100`;
 
         const [resFirst, resLast] = await Promise.all([fetch(urlFirst), fetch(urlLast)]);
@@ -465,8 +465,14 @@ async function fetchWeekData() {
             jsonLast.feeds  && jsonLast.feeds.length  > 0) {
           const first = jsonFirst.feeds[0];
           const last  = jsonLast.feeds[jsonLast.feeds.length - 1];
-          e = Math.max(0, (parseFloat(last.field3) || 0) - (parseFloat(first.field3) || 0));
-          b = Math.max(0, (parseFloat(last.field4) || 0) - (parseFloat(first.field4) || 0));
+          // Prüfen ob erster Eintrag wirklich im richtigen Zeitraum liegt
+          const firstTime = new Date(first.created_at).getTime();
+          const startTime = new Date(startUTC).getTime();
+          const endTime   = new Date(endUTC).getTime();
+          if (firstTime >= startTime && firstTime <= endTime) {
+            e = Math.max(0, (parseFloat(last.field3) || 0) - (parseFloat(first.field3) || 0));
+            b = Math.max(0, (parseFloat(last.field4) || 0) - (parseFloat(first.field4) || 0));
+          }
         }
       }
 
