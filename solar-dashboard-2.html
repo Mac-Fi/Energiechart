@@ -247,8 +247,35 @@ let lineChart, donutChart, barChart;
 let dayStartYield = null; // erster Wert des Tages für Field 3
 let dayStartGrid  = null; // erster Wert des Tages für Field 4
 let currentDay    = -1;
-let peakYield     = 0;   // höchster Tagesertrag heute — bleibt bis Mitternacht
-let peakNetzbezug = 0;   // höchster Netzbezug heute — bleibt bis Mitternacht
+
+// Peak-Werte aus localStorage laden (überleben Seitenreload)
+const todayKey = new Date().toISOString().split('T')[0];
+let peakYield     = parseFloat(localStorage.getItem('peak_yield_'     + todayKey) || '0');
+let peakNetzbezug = parseFloat(localStorage.getItem('peak_netzbezug_' + todayKey) || '0');
+
+// Beim ersten Laden: höchsten heutigen Wert aus ThingSpeak holen
+async function initPeaks() {
+  if (peakYield > 0 && peakNetzbezug > 0) return; // bereits aus localStorage geladen
+  try {
+    const offsetMs  = new Date().getTimezoneOffset() * 60000;
+    const dateStr   = todayLocalISO();
+    const startUTC  = new Date(new Date(dateStr + 'T00:00:00').getTime() - offsetMs).toISOString();
+    const url = `${TS_BASE}/${CONFIG.channelId}/feeds.json?api_key=${CONFIG.apiKey}&end=${new Date().toISOString()}&results=500`;
+    const res  = await fetch(url);
+    const json = await res.json();
+    if (json.feeds && json.feeds.length > 0 && dayStartYield !== null) {
+      const maxField3 = Math.max(...json.feeds.map(f => parseFloat(f.field3) || 0));
+      const maxField4 = Math.max(...json.feeds.map(f => parseFloat(f.field4) || 0));
+      peakYield     = Math.max(0, maxField3 - dayStartYield);
+      peakNetzbezug = Math.max(0, maxField4 - dayStartGrid);
+      localStorage.setItem('peak_yield_'     + todayKey, peakYield);
+      localStorage.setItem('peak_netzbezug_' + todayKey, peakNetzbezug);
+      console.log('Peaks aus ThingSpeak initialisiert:', peakYield, peakNetzbezug);
+    }
+  } catch(e) {
+    console.error('Peak-Init Fehler:', e);
+  }
+}
 
 function fmtTime(iso) {
   const d = new Date(iso);
@@ -308,6 +335,7 @@ async function fetchData() {
     const today = new Date().getDate();
     if (today !== currentDay || dayStartYield === null) {
       await fetchDayStart();
+      await initPeaks();
       currentDay = today;
     }
 
@@ -326,8 +354,10 @@ async function fetchData() {
     // Tageswerte als Differenz — nur nach oben aktualisieren (Peak-Tracking)
     const yldRaw       = dayStartYield !== null ? Math.max(0, yldTotal  - dayStartYield) : 0;
     const netzbezugRaw = dayStartGrid  !== null ? Math.max(0, gridTotal - dayStartGrid)  : 0;
-    if (yldRaw > peakYield)         peakYield     = yldRaw;
+    if (yldRaw > peakYield)           peakYield     = yldRaw;
     if (netzbezugRaw > peakNetzbezug) peakNetzbezug = netzbezugRaw;
+    localStorage.setItem('peak_yield_'     + todayKey, peakYield);
+    localStorage.setItem('peak_netzbezug_' + todayKey, peakNetzbezug);
 
     // Bei Tageswechsel Peaks zurücksetzen
     if (new Date().getDate() !== currentDay && currentDay !== -1) {
@@ -478,14 +508,16 @@ async function fetchWeekData() {
         if (jsonFirst.feeds && jsonFirst.feeds.length > 0 &&
             jsonLast.feeds  && jsonLast.feeds.length  > 0) {
           const first = jsonFirst.feeds[0];
-          const last  = jsonLast.feeds[jsonLast.feeds.length - 1];
-          // Prüfen ob erster Eintrag wirklich im richtigen Zeitraum liegt
           const firstTime = new Date(first.created_at).getTime();
           const startTime = new Date(startUTC).getTime();
           const endTime   = new Date(endUTC).getTime();
           if (firstTime >= startTime && firstTime <= endTime) {
-            e = Math.max(0, (parseFloat(last.field3) || 0) - (parseFloat(first.field3) || 0));
-            b = Math.max(0, (parseFloat(last.field4) || 0) - (parseFloat(first.field4) || 0));
+            // Höchsten Wert aus den letzten 100 Einträgen nehmen
+            // — schützt vor openDTU-Reset am Abend
+            const maxField3 = Math.max(...jsonLast.feeds.map(f => parseFloat(f.field3) || 0));
+            const maxField4 = Math.max(...jsonLast.feeds.map(f => parseFloat(f.field4) || 0));
+            e = Math.max(0, maxField3 - (parseFloat(first.field3) || 0));
+            b = Math.max(0, maxField4 - (parseFloat(first.field4) || 0));
           }
         }
       }
