@@ -321,10 +321,12 @@ async function fetchDayStart() {
   const json = await res.json();
 
   if (json.feeds && json.feeds.length > 0) {
-    const last = json.feeds[json.feeds.length - 1];
-    dayStartYield = parseFloat(last.field3) || 0;
-    dayStartGrid  = parseFloat(last.field4) || 0;
-    console.log('DayStart (letzter Wert gestern):', dayStartYield, dayStartGrid, last.created_at);
+    // Höchsten Wert von gestern nehmen — schützt vor openDTU-Reset am Abend
+    const maxField3 = Math.max(...json.feeds.map(f => parseFloat(f.field3) || 0));
+    const maxField4 = Math.max(...json.feeds.map(f => parseFloat(f.field4) || 0));
+    dayStartYield = maxField3;
+    dayStartGrid  = maxField4;
+    console.log('DayStart (höchster Wert gestern):', dayStartYield, dayStartGrid);
   } else {
     // Kein gestriger Wert — ersten heutigen Wert nehmen
     const todayStr  = todayLocalISO();
