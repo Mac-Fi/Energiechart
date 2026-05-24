@@ -511,7 +511,7 @@ async function fetchWeekData() {
         // Letzter: die letzten 100 Einträge vor Tagesende — letzter davon ist Tagesendwert
         // Ersten Eintrag des Tages holen — erste 6 Stunden abfragen
         const urlFirst = `${TS_BASE}/${CONFIG.channelId}/feeds.json?api_key=${CONFIG.apiKey}&start=${startUTC}&end=${new Date(new Date(startUTC).getTime() + 6 * 3600000).toISOString()}&results=1`;
-        const urlLast  = `${TS_BASE}/${CONFIG.channelId}/feeds.json?api_key=${CONFIG.apiKey}&end=${endUTC}&results=100`;
+        const urlLast  = `${TS_BASE}/${CONFIG.channelId}/feeds.json?api_key=${CONFIG.apiKey}&end=${endUTC}&results=1000`;
 
         const [resFirst, resLast] = await Promise.all([fetch(urlFirst), fetch(urlLast)]);
         const [jsonFirst, jsonLast] = await Promise.all([resFirst.json(), resLast.json()]);
