@@ -306,32 +306,32 @@ function todayLocalISO() {
 // Letzten Datenpunkt von gestern holen als Tagesstartwert
 async function fetchDayStart() {
   const offsetMs   = new Date().getTimezoneOffset() * 60000;
-  const yesterday  = new Date(Date.now() - 86400000); // gestern
+  const yesterday  = new Date(Date.now() - 86400000);
   const pad = n => n.toString().padStart(2, '0');
   const yStr = `${yesterday.getFullYear()}-${pad(yesterday.getMonth()+1)}-${pad(yesterday.getDate())}`;
 
-  // Letzten Wert von gestern (lokale Zeit in UTC)
-  const endLocal  = new Date(yStr + 'T23:59:59');
-  const endUTC    = new Date(endLocal.getTime() + offsetMs * -1);
+  const endLocal   = new Date(yStr + 'T23:59:59');
+  const endUTC     = new Date(endLocal.getTime() - offsetMs);
   const startLocal = new Date(yStr + 'T00:00:00');
-  const startUTC   = new Date(startLocal.getTime() + offsetMs * -1);
+  const startUTC   = new Date(startLocal.getTime() - offsetMs);
 
   const url = `${TS_BASE}/${CONFIG.channelId}/feeds.json?api_key=${CONFIG.apiKey}&start=${startUTC.toISOString()}&end=${endUTC.toISOString()}&results=1000`;
   const res  = await fetch(url);
   const json = await res.json();
 
   if (json.feeds && json.feeds.length > 0) {
-    // Höchsten Wert von gestern nehmen — schützt vor openDTU-Reset am Abend
-    const maxField3 = Math.max(...json.feeds.map(f => parseFloat(f.field3) || 0));
-    const maxField4 = Math.max(...json.feeds.map(f => parseFloat(f.field4) || 0));
+    // field3: höchsten Wert nehmen — schützt vor openDTU-Reset am Abend
+    // field4: letzten Wert nehmen — monoton steigend, kein Reset-Problem
+    const maxField3  = Math.max(...json.feeds.map(f => parseFloat(f.field3) || 0));
+    const lastField4 = parseFloat(json.feeds[json.feeds.length - 1].field4) || 0;
     dayStartYield = maxField3;
-    dayStartGrid  = maxField4;
-    console.log('DayStart (höchster Wert gestern):', dayStartYield, dayStartGrid);
+    dayStartGrid  = lastField4;
+    console.log('DayStart:', dayStartYield, dayStartGrid);
   } else {
     // Kein gestriger Wert — ersten heutigen Wert nehmen
     const todayStr  = todayLocalISO();
-    const startTodayUTC = new Date(new Date(todayStr + 'T00:00:00').getTime() + offsetMs * -1);
-    const endTodayUTC   = new Date(new Date(todayStr + 'T23:59:59').getTime() + offsetMs * -1);
+    const startTodayUTC = new Date(new Date(todayStr + 'T00:00:00').getTime() - offsetMs);
+    const endTodayUTC   = new Date(new Date(todayStr + 'T23:59:59').getTime() - offsetMs);
     const url2 = `${TS_BASE}/${CONFIG.channelId}/feeds.json?api_key=${CONFIG.apiKey}&start=${startTodayUTC.toISOString()}&end=${endTodayUTC.toISOString()}&results=1`;
     const res2 = await fetch(url2);
     const json2 = await res2.json();
@@ -528,12 +528,12 @@ async function fetchWeekData() {
           const startTime = new Date(startUTC).getTime();
           const endTime   = new Date(endUTC).getTime();
           if (firstTime >= startTime && firstTime <= endTime) {
-            // Höchsten Wert aus den letzten 100 Einträgen nehmen
-            // — schützt vor openDTU-Reset am Abend
-            const maxField3 = Math.max(...jsonLast.feeds.map(f => parseFloat(f.field3) || 0));
-            const maxField4 = Math.max(...jsonLast.feeds.map(f => parseFloat(f.field4) || 0));
-            e = Math.max(0, maxField3 - (parseFloat(first.field3) || 0));
-            b = Math.max(0, maxField4 - (parseFloat(first.field4) || 0));
+            // field3: höchsten Wert nehmen — schützt vor openDTU-Reset
+            // field4: letzten Wert nehmen — monoton steigend, kein Reset-Problem
+            const maxField3  = Math.max(...jsonLast.feeds.map(f => parseFloat(f.field3) || 0));
+            const lastField4 = parseFloat(jsonLast.feeds[jsonLast.feeds.length - 1].field4) || 0;
+            e = Math.max(0, maxField3  - (parseFloat(first.field3) || 0));
+            b = Math.max(0, lastField4 - (parseFloat(first.field4) || 0));
           }
         }
       }
