@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Solar Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #111112;
+    color: #e8e8e6;
+    font-family: system-ui, -apple-system, sans-serif;
+    min-height: 100vh;
+    padding: 1.5rem;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.5rem;
+  }
+
+  header h1 { font-size: 18px; font-weight: 500; color: #e8e8e6; }
+  #last-update { font-size: 13px; color: #888780; }
+
+  .section-title {
+    font-size: 11px;
+    font-weight: 500;
+    color: #888780;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    margin-bottom: 10px;
+    margin-top: 1.5rem;
+  }
+
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+    margin-bottom: 1rem;
+  }
+
+  .card {
+    background: #1a1a1c;
+    border: 0.5px solid #2c2c2a;
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+  }
+
+  .card-label {
+    font-size: 12px;
+    color: #888780;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .card-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    flex-shrink: 0;
+  }
+
+  .card-value { font-size: 26px; font-weight: 500; line-height: 1.1; }
+  .card-unit  { font-size: 13px; color: #888780; font-weight: 400; margin-left: 2px; }
+  .card-sub   { font-size: 12px; color: #888780; margin-top: 4px; }
+
+  .dot-pv      { background: #EF9F27; }
+  .dot-red     { background: #E24B4A; }
+  .dot-ev      { background: #1D9E75; }
+  .dot-blue    { background: #378ADD; }
+  .dot-teal    { background: #20B2AA; }
+  .dot-bat     { background: #F97316; }
+  .dot-batpow  { background: #A78BFA; }
+
+  .val-pv      { color: #EF9F27; }
+  .val-red     { color: #E24B4A; }
+  .val-ev      { color: #1D9E75; }
+  .val-blue    { color: #378ADD; }
+  .val-teal    { color: #20B2AA; }
+  .val-bat     { color: #F97316; }
+  .val-batpow  { color: #A78BFA; }
+
+  .charts {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-top: 1.5rem;
+    margin-bottom: 1rem;
+  }
+
+  @media (max-width: 600px) { .charts { grid-template-columns: 1fr; } }
+
+  .chart-card {
+    background: #1a1a1c;
+    border: 0.5px solid #2c2c2a;
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+  }
+
+  .chart-card h2 {
+    font-size: 13px; font-weight: 500; color: #888780;
+    margin-bottom: 1rem; text-transform: uppercase; letter-spacing: 0.05em;
+  }
+
+  .chart-wrap { position: relative; height: 200px; }
+
+  .autarkie-wrap {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; height: 200px;
+  }
+
+  .autarkie-ring { position: relative; width: 140px; height: 140px; }
+  .autarkie-ring canvas { width: 140px !important; height: 140px !important; }
+
+  .autarkie-center {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%); text-align: center;
+  }
+
+  .autarkie-pct { font-size: 26px; font-weight: 500; color: #EF9F27; }
+  .autarkie-lbl { font-size: 11px; color: #888780; }
+
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: #1D9E75; display: inline-block; margin-right: 6px;
+    animation: pulse 2s infinite;
+  }
+
+  @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+  .loading { color: #888780; font-size: 13px; }
+  .error   { color: #E24B4A; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>&#9728; Solar Dashboard</h1>
+  <span id="last-update" class="loading">Verbinde...</span>
+</header>
+
+<div class="section-title">Echtzeit</div>
+<div class="cards">
+  <div class="card">
+    <div class="card-label"><span class="card-dot dot-pv"></span>PV-Leistung</div>
+    <div class="card-value val-pv"><span id="v-pv">—</span><span class="card-unit">W</span></div>
+  </div>
+  <div class="card">
+    <div class="card-label"><span class="card-dot dot-red" id="dot-grid"></span>Netzleistung</div>
+    <div class="card-value" id="v-grid-wrap"><span id="v-grid">—</span><span class="card-unit">W</span></div>
+    <div class="card-sub" id="v-grid-hint"></div>
+  </div>
+  <div class="card">
+    <div class="card-label"><span class="card-dot dot-blue"></span>Gesamtverbrauch</div>
+    <div class="card-value val-blue"><span id="v-ev">—</span><span class="card-unit">W</span></div>
+  </div>
+  <div class="card" id="card-soc" style="display:none;">
+    <div class="card-label"><span class="card-dot dot-bat"></span>Batterie SOC</div>
+    <div class="card-value val-bat"><span id="v-soc">—</span><span class="card-unit">%</span></div>
+    <div class="card-sub" id="v-soc-hint"></div>
+  </div>
+  <div class="card" id="card-bat-power" style="display:none;">
+    <div class="card-label"><span class="card-dot dot-batpow"></span>Batterieleistung</div>
+    <div class="card-value" id="v-bat-wrap"><span id="v-bat-power">—</span><span class="card-unit">W</span></div>
+    <div class="card-sub" id="v-bat-hint"></div>
+  </div>
+</div>
+
+<div class="section-title">Heute</div>
+<div class="cards">
+  <div class="card">
+    <div class="card-label"><span class="card-dot dot-pv"></span>Tagesertrag WR</div>
+    <div class="card-value val-pv"><span id="v-yield">—</span><span class="card-unit">kWh</span></div>
+  </div>
+  <div class="card">
+    <div class="card-label"><span class="card-dot dot-red"></span>Netzbezug heute</div>
+    <div class="card-value val-red"><span id="v-netzbezug">—</span><span class="card-unit">kWh</span></div>
+  </div>
+  <div class="card">
+    <div class="card-label"><span class="card-dot dot-blue"></span>Tagesverbrauch</div>
+    <div class="card-value val-blue"><span id="v-verbrauch">—</span><span class="card-unit">kWh</span></div>
+  </div>
+  <div class="card">
+    <div class="card-label"><span class="card-dot dot-teal"></span>Einsparung heute</div>
+    <div class="card-value val-teal"><span id="v-einsparung">—</span><span class="card-unit">€</span></div>
+  </div>
+</div>
+
+<div class="section-title">Gesamt</div>
+<div class="cards">
+  <div class="card">
+    <div class="card-label"><span class="card-dot dot-pv"></span>Gesamtertrag WR</div>
+    <div class="card-value val-pv"><span id="v-total">—</span><span class="card-unit">kWh</span></div>
+  </div>
+  <div class="card">
+    <div class="card-label"><span class="card-dot dot-teal"></span>Gesamteinsparung</div>
+    <div class="card-value val-teal"><span id="v-total-einsparung">—</span><span class="card-unit">€</span></div>
+  </div>
+</div>
+
+<div class="charts">
+  <div class="chart-card">
+    <h2>Verlauf heute</h2>
+    <div class="chart-wrap"><canvas id="lineChart"></canvas></div>
+  </div>
+  <div class="chart-card">
+    <h2>Autarkiegrad heute</h2>
+    <div class="autarkie-wrap">
+      <div class="autarkie-ring">
+        <canvas id="donutChart"></canvas>
+        <div class="autarkie-center">
+          <div class="autarkie-pct" id="autarkie-pct">—</div>
+          <div class="autarkie-lbl">autark</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="chart-card" style="margin-bottom:1.5rem;">
+  <h2>Letzte 7 Tage — Ertrag &amp; Netzbezug (kWh)</h2>
+  <div class="chart-wrap" style="height:220px;"><canvas id="barChart"></canvas></div>
+</div>
+
+<script>
+// =============================================
+// KONFIGURATION — hier alle Werte anpassen
+// =============================================
+const CONFIG = {
+  // openSenseMap Box-ID und Sensor-IDs
+  // (müssen mit denen im .ino übereinstimmen)
+  boxId:            '6a103fed03d3940007b1c1a8',
+  sensorPVPower:    '6a103fed03d3940007b1c1a9', // PV Leistung (W)
+  sensorGridPower:  '6a103fed03d3940007b1c1aa', // Netzleistung (W)
+  sensorYieldTotal: '6a103fed03d3940007b1c1ab', // Gesamtertrag WR (kWh)
+  sensorGridTotal:  '6a103fed03d3940007b1c1ac', // Netzbezug gesamt (kWh)
+  sensorBatSOC:     '6a103fed03d3940007b1c1ad', // Batterie SOC (%) — '' wenn kein Marstek
+  sensorBatPower:   '6a103fed03d3940007b1c1ae', // Batterieleistung (W)
+
+  strompreis:     0.29,   // €/kWh
+  updateInterval: 30000,  // ms
+  verlaufPunkte:  60,     // Anzahl Datenpunkte im Linienchart
+};
+// =============================================
+
+// openSenseMap REST-API
+// Doku: https://docs.opensensemap.org/
+// GET /boxes/:boxId/data/:sensorId?from-date=...&to-date=...&format=json
+const OSM_BASE = 'https://api.opensensemap.org';
+
+let lineChart, donutChart, barChart;
+let dayStartYield = null;
+let dayStartGrid  = null;
+let currentDay    = -1;
+
+function fmtTime(iso) {
+  const d = new Date(iso);
+  return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
+}
+
+function isoDay(date, time = '00:00:00') {
+  const pad = n => n.toString().padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${time}Z`;
+}
+
+// Letzten N Messwerte eines Sensors holen
+// GET /boxes/:boxId/data/:sensorId?format=json&limit=N
+async function fetchSensor(sensorId, limit = 1) {
+  const url = `${OSM_BASE}/boxes/${CONFIG.boxId}/data/${sensorId}?format=json&limit=${limit}`;
+  const res  = await fetch(url);
+  if (!res.ok) throw new Error(`OSM ${res.status}: ${sensorId}`);
+  return res.json(); // Array von { value, createdAt }
+}
+
+// Messwerte eines Sensors in einem Zeitraum holen
+// GET /boxes/:boxId/data/:sensorId?from-date=...&to-date=...&format=json
+async function fetchSensorRange(sensorId, fromISO, toISO) {
+  const url = `${OSM_BASE}/boxes/${CONFIG.boxId}/data/${sensorId}` +
+              `?from-date=${encodeURIComponent(fromISO)}&to-date=${encodeURIComponent(toISO)}&format=json`;
+  const res  = await fetch(url);
+  if (!res.ok) throw new Error(`OSM ${res.status}: ${sensorId}`);
+  return res.json();
+}
+
+// Tagesstartwert bestimmen (letzter Wert von gestern)
+async function fetchDayStart() {
+  const yesterday = new Date(Date.now() - 86400000);
+  const fromISO   = isoDay(yesterday, '00:00:00');
+  const toISO     = isoDay(yesterday, '23:59:59');
+
+  try {
+    const [yldData, gridData] = await Promise.all([
+      fetchSensorRange(CONFIG.sensorYieldTotal, fromISO, toISO),
+      fetchSensorRange(CONFIG.sensorGridTotal,  fromISO, toISO),
+    ]);
+
+    if (yldData.length > 0 && gridData.length > 0) {
+      // openSenseMap liefert neueste zuerst → Index 0 ist der späteste Wert
+      dayStartYield = parseFloat(yldData[0].value)  || 0;
+      dayStartGrid  = parseFloat(gridData[0].value) || 0;
+      console.log('DayStart (letzter Wert gestern):', dayStartYield, dayStartGrid);
+    } else {
+      // Kein gestriger Wert → ersten heutigen Wert verwenden
+      const today = new Date();
+      const [y2, g2] = await Promise.all([
+        fetchSensorRange(CONFIG.sensorYieldTotal, isoDay(today,'00:00:00'), isoDay(today,'23:59:59')),
+        fetchSensorRange(CONFIG.sensorGridTotal,  isoDay(today,'00:00:00'), isoDay(today,'23:59:59')),
+      ]);
+      // ältester Wert steht am Ende des Arrays
+      dayStartYield = y2.length > 0 ? (parseFloat(y2[y2.length - 1].value) || 0) : 0;
+      dayStartGrid  = g2.length > 0 ? (parseFloat(g2[g2.length - 1].value) || 0) : 0;
+      console.log('DayStart (erster Wert heute):', dayStartYield, dayStartGrid);
+    }
+  } catch(e) {
+    console.warn('DayStart Fehler:', e);
+  }
+}
+
+async function fetchData() {
+  try {
+    // Tagesstart einmal pro Tag holen
+    const today = new Date().getDate();
+    if (today !== currentDay || dayStartYield === null) {
+      await fetchDayStart();
+      currentDay = today;
+    }
+
+    // Aktuelle Werte aller Sensoren parallel laden
+    const [pvData, gridData, yldData, gridTotData] = await Promise.all([
+      fetchSensor(CONFIG.sensorPVPower,    1),
+      fetchSensor(CONFIG.sensorGridPower,  1),
+      fetchSensor(CONFIG.sensorYieldTotal, 1),
+      fetchSensor(CONFIG.sensorGridTotal,  1),
+    ]);
+
+    const pv        = parseFloat(pvData[0]?.value)      || 0;
+    const grid      = parseFloat(gridData[0]?.value)    || 0;
+    const yldTotal  = parseFloat(yldData[0]?.value)     || 0;
+    const gridTotal = parseFloat(gridTotData[0]?.value) || 0;
+
+    // Tageswerte
+    const yld       = dayStartYield !== null ? Math.max(0, yldTotal  - dayStartYield) : 0;
+    const netzbezug = dayStartGrid  !== null ? Math.max(0, gridTotal - dayStartGrid)  : 0;
+    const totalConsumption = Math.max(0, pv + grid);
+    const verbrauch = yld + netzbezug;
+    const einsparung = yld * CONFIG.strompreis;
+    const autarkie  = verbrauch > 0 ? Math.min((yld / verbrauch) * 100, 100) : 0;
+
+    // Echtzeit anzeigen
+    document.getElementById('v-pv').textContent  = Math.round(pv);
+    document.getElementById('v-grid').textContent = Math.round(Math.abs(grid));
+    document.getElementById('v-ev').textContent   = Math.round(totalConsumption);
+
+    const gridWrap = document.getElementById('v-grid-wrap');
+    const gridHint = document.getElementById('v-grid-hint');
+    const gridDot  = document.getElementById('dot-grid');
+    if (grid >= 0) {
+      gridWrap.className       = 'card-value val-red';
+      gridDot.style.background = '#E24B4A';
+      gridHint.textContent     = '↑ Netzbezug';
+    } else {
+      gridWrap.className       = 'card-value val-ev';
+      gridDot.style.background = '#1D9E75';
+      gridHint.textContent     = '↓ Einspeisung';
+    }
+
+    // Heute
+    document.getElementById('v-yield').textContent      = yld.toFixed(2);
+    document.getElementById('v-verbrauch').textContent  = verbrauch.toFixed(2);
+    document.getElementById('v-netzbezug').textContent  = netzbezug.toFixed(2);
+    document.getElementById('v-einsparung').textContent = einsparung.toFixed(2);
+
+    // Gesamt
+    document.getElementById('v-total').textContent            = yldTotal.toFixed(0);
+    document.getElementById('v-total-einsparung').textContent = (yldTotal * CONFIG.strompreis).toFixed(0);
+
+    // Autarkie
+    document.getElementById('autarkie-pct').textContent = Math.round(autarkie) + '%';
+
+    // Batterie (optional)
+    if (CONFIG.sensorBatSOC) {
+      try {
+        const [socData, batPowData] = await Promise.all([
+          fetchSensor(CONFIG.sensorBatSOC,   1),
+          fetchSensor(CONFIG.sensorBatPower, 1),
+        ]);
+        const soc      = parseFloat(socData[0]?.value);
+        const batPower = parseFloat(batPowData[0]?.value) || 0;
+        if (!isNaN(soc)) {
+          document.getElementById('card-soc').style.display       = '';
+          document.getElementById('card-bat-power').style.display = '';
+          document.getElementById('v-soc').textContent = Math.round(soc);
+          document.getElementById('v-soc-hint').textContent =
+            soc >= 80 ? '🟢 Voll' : soc >= 30 ? '🟡 Mittel' : '🔴 Niedrig';
+
+          const batWrap = document.getElementById('v-bat-wrap');
+          const batHint = document.getElementById('v-bat-hint');
+          document.getElementById('v-bat-power').textContent = Math.round(Math.abs(batPower));
+          if (batPower > 0)      { batWrap.style.color = '#1D9E75'; batHint.textContent = '↑ Laden'; }
+          else if (batPower < 0) { batWrap.style.color = '#F97316'; batHint.textContent = '↓ Entladen'; }
+          else                   { batWrap.style.color = '#888780'; batHint.textContent = '— Standby'; }
+        }
+      } catch(e) { console.warn('Batterie-Daten Fehler:', e); }
+    }
+
+    // Linienchart — letzten N Werte laden
+    const today2 = new Date();
+    const [pvHist, gridHist] = await Promise.all([
+      fetchSensorRange(CONFIG.sensorPVPower,   isoDay(today2,'00:00:00'), isoDay(today2,'23:59:59')),
+      fetchSensorRange(CONFIG.sensorGridPower, isoDay(today2,'00:00:00'), isoDay(today2,'23:59:59')),
+    ]);
+    // openSenseMap liefert neueste zuerst → umkehren für Zeitachse
+    pvHist.reverse();
+    gridHist.reverse();
+
+    // Gemeinsame Zeitstempel (PV als Referenz)
+    const labels   = pvHist.slice(-CONFIG.verlaufPunkte).map(d => fmtTime(d.createdAt));
+    const pvVals   = pvHist.slice(-CONFIG.verlaufPunkte).map(d => parseFloat(d.value) || 0);
+    const gridVals = gridHist.slice(-CONFIG.verlaufPunkte).map(d => parseFloat(d.value) || 0);
+    const consVals = pvVals.map((p, i) => Math.max(0, p + (gridVals[i] || 0)));
+
+    updateLineChart(labels, pvVals, gridVals, consVals);
+    updateDonut(autarkie);
+    fetchWeekData();
+
+    const now = new Date();
+    document.getElementById('last-update').innerHTML =
+      `<span class="status-dot"></span>Aktualisiert ${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
+
+  } catch(e) {
+    document.getElementById('last-update').innerHTML = `<span class="error">Fehler: ${e.message}</span>`;
+    console.error(e);
+  }
+}
+
+async function fetchWeekData() {
+  try {
+    const labels    = [];
+    const ertrag    = [];
+    const bezug     = [];
+    const autarkieW = [];
+
+    for (let i = 6; i >= 0; i--) {
+      const date    = new Date();
+      date.setDate(date.getDate() - i);
+      const pad     = n => n.toString().padStart(2, '0');
+      const dateStr = `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}`;
+      labels.push(date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }));
+
+      const fromISO = `${dateStr}T00:00:00Z`;
+      const toISO   = `${dateStr}T23:59:59Z`;
+
+      try {
+        const [yldDay, gridDay] = await Promise.all([
+          fetchSensorRange(CONFIG.sensorYieldTotal, fromISO, toISO),
+          fetchSensorRange(CONFIG.sensorGridTotal,  fromISO, toISO),
+        ]);
+
+        if (yldDay.length > 1 && gridDay.length > 1) {
+          // neueste zuerst → [0]=spätester, [last]=frühester
+          const e = Math.max(0,
+            (parseFloat(yldDay[0].value)              || 0) -
+            (parseFloat(yldDay[yldDay.length-1].value) || 0));
+          const b = Math.max(0,
+            (parseFloat(gridDay[0].value)                || 0) -
+            (parseFloat(gridDay[gridDay.length-1].value) || 0));
+          const v = e + b;
+          ertrag.push(parseFloat(e.toFixed(2)));
+          bezug.push(parseFloat(b.toFixed(2)));
+          autarkieW.push(v > 0 ? parseFloat(Math.min((e / v) * 100, 100).toFixed(1)) : 0);
+        } else {
+          ertrag.push(0); bezug.push(0); autarkieW.push(0);
+        }
+      } catch(e) {
+        ertrag.push(0); bezug.push(0); autarkieW.push(0);
+      }
+    }
+    updateBarChart(labels, ertrag, bezug, autarkieW);
+  } catch(e) {
+    console.error('Wochendaten Fehler:', e);
+  }
+}
+
+function updateLineChart(labels, pv, grid, cons) {
+  const ctx = document.getElementById('lineChart').getContext('2d');
+  if (lineChart) lineChart.destroy();
+  lineChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'PV (W)',             data: pv,   borderColor: '#EF9F27', backgroundColor: 'rgba(239,159,39,0.08)', borderWidth: 2,   pointRadius: 0, tension: 0.3, fill: true  },
+        { label: 'Netz (W)',           data: grid, borderColor: '#E24B4A', backgroundColor: 'rgba(226,75,74,0.06)',  borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false },
+        { label: 'Gesamtverbrauch (W)', data: cons, borderColor: '#378ADD', backgroundColor: 'rgba(55,138,221,0.06)', borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { labels: { color: '#888780', font: { size: 11 }, boxWidth: 12, padding: 12 } } },
+      scales: {
+        x: { ticks: { color: '#888780', font: { size: 11 }, maxTicksLimit: 8 }, grid: { color: '#2c2c2a' } },
+        y: { ticks: { color: '#888780', font: { size: 11 } }, grid: { color: '#2c2c2a' } }
+      }
+    }
+  });
+}
+
+function updateDonut(autarkie) {
+  const ctx = document.getElementById('donutChart').getContext('2d');
+  if (donutChart) donutChart.destroy();
+  donutChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      datasets: [{
+        data: [autarkie, Math.max(0, 100 - autarkie)],
+        backgroundColor: ['#EF9F27', '#2c2c2a'],
+        borderWidth: 0, hoverOffset: 0
+      }]
+    },
+    options: {
+      responsive: false, cutout: '72%',
+      plugins: { legend: { display: false }, tooltip: { enabled: false } }
+    }
+  });
+}
+
+function updateBarChart(labels, ertrag, bezug, autarkieW) {
+  const ctx = document.getElementById('barChart').getContext('2d');
+  if (barChart) barChart.destroy();
+  barChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Ertrag (kWh)',    data: ertrag,    backgroundColor: 'rgba(239,159,39,0.8)', borderRadius: 4, type: 'bar' },
+        { label: 'Netzbezug (kWh)', data: bezug,     backgroundColor: 'rgba(226,75,74,0.7)',  borderRadius: 4, type: 'bar' },
+        { label: 'Autarkie (%)',    data: autarkieW, borderColor: '#1D9E75', backgroundColor: 'transparent', borderWidth: 2, pointRadius: 3, pointBackgroundColor: '#1D9E75', tension: 0.3, type: 'line', yAxisID: 'y2' },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#888780', font: { size: 11 }, boxWidth: 12, padding: 12 } } },
+      scales: {
+        x:  { ticks: { color: '#888780', font: { size: 11 } }, grid: { color: '#2c2c2a' } },
+        y:  { ticks: { color: '#888780', font: { size: 11 } }, grid: { color: '#2c2c2a' }, title: { display: true, text: 'kWh', color: '#888780', font: { size: 10 } } },
+        y2: { position: 'right', min: 0, max: 100, ticks: { color: '#1D9E75', font: { size: 11 }, callback: v => v + '%' }, grid: { drawOnChartArea: false }, title: { display: true, text: '%', color: '#1D9E75', font: { size: 10 } } }
+      }
+    }
+  });
+}
+
+fetchData();
+setInterval(fetchData, CONFIG.updateInterval);
+</script>
+</body>
+</html>
