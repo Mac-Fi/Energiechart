@@ -276,12 +276,23 @@ function isoDay(date, time = 'start') {
   }
 }
 
-// Letzten N Messwerte eines Sensors holen
-async function fetchSensor(sensorId, limit = 1) {
-  const url = `${OSM_BASE}/boxes/${CONFIG.boxId}/data/${sensorId}?format=json&limit=${limit}`;
+// Alle Sensor-Letztwerte in einem Request holen
+// GET /boxes/:boxId — lastMeasurement ist im sensors-Array enthalten
+let _sensorCache = null;
+async function fetchAllSensors() {
+  const url = `${OSM_BASE}/boxes/${CONFIG.boxId}?full=true`;
   const res  = await fetch(url);
-  if (!res.ok) throw new Error(`OSM ${res.status}: ${sensorId}`);
-  return res.json();
+  if (!res.ok) throw new Error(`OSM ${res.status}: fetchAllSensors`);
+  const box  = await res.json();
+  // Index nach sensorId aufbauen für schnellen Zugriff
+  _sensorCache = {};
+  for (const s of box.sensors) {
+    _sensorCache[s._id] = s.lastMeasurement?.value ?? null;
+  }
+}
+
+function sensorVal(sensorId) {
+  return _sensorCache?.[sensorId] != null ? parseFloat(_sensorCache[sensorId]) : 0;
 }
 
 // Messwerte eines Sensors in einem Zeitraum holen
@@ -295,24 +306,17 @@ async function fetchSensorRange(sensorId, fromISO, toISO) {
 
 async function fetchData() {
   try {
-    // Alle aktuellen Werte parallel laden — Tageszähler kommen direkt vom ESP
-    const [pvData, gridData, yldTotData, gridTotData, yldDayData, gridDayData] = await Promise.all([
-      fetchSensor(CONFIG.sensorPVPower,    1),
-      fetchSensor(CONFIG.sensorGridPower,  1),
-      fetchSensor(CONFIG.sensorYieldTotal, 1),
-      fetchSensor(CONFIG.sensorGridTotal,  1),
-      fetchSensor(CONFIG.sensorYieldDay,   1),
-      fetchSensor(CONFIG.sensorGridDay,    1),
-    ]);
+    // Alle Letztwerte in einem einzigen Request — statt 6 einzelner Calls
+    await fetchAllSensors();
 
-    const pv        = parseFloat(pvData[0]?.value)      || 0;
-    const grid      = parseFloat(gridData[0]?.value)    || 0;
-    const yldTotal  = parseFloat(yldTotData[0]?.value)  || 0;
-    const gridTotal = parseFloat(gridTotData[0]?.value) || 0;
+    const pv        = sensorVal(CONFIG.sensorPVPower);
+    const grid      = sensorVal(CONFIG.sensorGridPower);
+    const yldTotal  = sensorVal(CONFIG.sensorYieldTotal);
+    const gridTotal = sensorVal(CONFIG.sensorGridTotal);
 
     // Tageswerte direkt aus dedizierten Sensoren — kein fetchDayStart() nötig
-    const yld        = parseFloat(yldDayData[0]?.value)  || 0;
-    const netzbezug  = parseFloat(gridDayData[0]?.value) || 0;
+    const yld        = sensorVal(CONFIG.sensorYieldDay);
+    const netzbezug  = sensorVal(CONFIG.sensorGridDay);
     const totalConsumption = Math.max(0, pv + grid);
     const verbrauch  = yld + netzbezug;
     const einsparung = yld * CONFIG.strompreis;
@@ -352,12 +356,9 @@ async function fetchData() {
     // Batterie (optional)
     if (CONFIG.sensorBatSOC) {
       try {
-        const [socData, batPowData] = await Promise.all([
-          fetchSensor(CONFIG.sensorBatSOC,   1),
-          fetchSensor(CONFIG.sensorBatPower, 1),
-        ]);
-        const soc      = parseFloat(socData[0]?.value);
-        const batPower = parseFloat(batPowData[0]?.value) || 0;
+        // Batterie-Werte aus dem bereits geladenen Cache
+        const soc      = sensorVal(CONFIG.sensorBatSOC);
+        const batPower = sensorVal(CONFIG.sensorBatPower);
         if (!isNaN(soc)) {
           document.getElementById('card-soc').style.display       = '';
           document.getElementById('card-bat-power').style.display = '';
@@ -407,34 +408,38 @@ async function fetchData() {
 
 async function fetchWeekData() {
   try {
-    const labels    = [];
+    // Alle 7 Tage vollständig parallel — statt sequentieller Schleife
+    const days = Array.from({ length: 7 }, (_, i) => {
+      const date = new Date();
+      date.setDate(date.getDate() - (6 - i));
+      return date;
+    });
+
+    const labels = days.map(d => d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }));
+
+    // 14 Requests alle gleichzeitig feuern
+    const requests = days.flatMap(date => [
+      fetchSensorRange(CONFIG.sensorYieldTotal, isoDay(date,'start'), isoDay(date,'end')),
+      fetchSensorRange(CONFIG.sensorGridTotal,  isoDay(date,'start'), isoDay(date,'end')),
+    ]);
+    const results = await Promise.allSettled(requests);
+
     const ertrag    = [];
     const bezug     = [];
     const autarkieW = [];
 
-    for (let i = 6; i >= 0; i--) {
-      const date    = new Date();
-      date.setDate(date.getDate() - i);
-      const pad     = n => n.toString().padStart(2, '0');
-      const dateStr = `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}`;
-      labels.push(date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }));
-
-      const fromISO = isoDay(date, 'start'); // lokale Mitternacht → UTC
-      const toISO   = isoDay(date, 'end');
-
-      try {
-        const [yldDay, gridDay] = await Promise.all([
-          fetchSensorRange(CONFIG.sensorYieldTotal, fromISO, toISO),
-          fetchSensorRange(CONFIG.sensorGridTotal,  fromISO, toISO),
-        ]);
-
+    for (let i = 0; i < 7; i++) {
+      const yldRes  = results[i * 2];
+      const gridRes = results[i * 2 + 1];
+      if (yldRes.status === 'fulfilled' && gridRes.status === 'fulfilled') {
+        const yldDay  = yldRes.value;
+        const gridDay = gridRes.value;
         if (yldDay.length > 1 && gridDay.length > 1) {
-          // neueste zuerst → [0]=spätester, [last]=frühester
           const e = Math.max(0,
-            (parseFloat(yldDay[0].value)              || 0) -
-            (parseFloat(yldDay[yldDay.length-1].value) || 0));
+            (parseFloat(yldDay[0].value)               || 0) -
+            (parseFloat(yldDay[yldDay.length-1].value)  || 0));
           const b = Math.max(0,
-            (parseFloat(gridDay[0].value)                || 0) -
+            (parseFloat(gridDay[0].value)               || 0) -
             (parseFloat(gridDay[gridDay.length-1].value) || 0));
           const v = e + b;
           ertrag.push(parseFloat(e.toFixed(2)));
@@ -443,7 +448,7 @@ async function fetchWeekData() {
         } else {
           ertrag.push(0); bezug.push(0); autarkieW.push(0);
         }
-      } catch(e) {
+      } else {
         ertrag.push(0); bezug.push(0); autarkieW.push(0);
       }
     }
@@ -452,6 +457,7 @@ async function fetchWeekData() {
     console.error('Wochendaten Fehler:', e);
   }
 }
+
 
 function updateLineChart(labels, pv, grid, cons) {
   const ctx = document.getElementById('lineChart').getContext('2d');
