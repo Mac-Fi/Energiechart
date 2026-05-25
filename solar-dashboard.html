@@ -240,6 +240,8 @@ const CONFIG = {
   sensorGridPower:  '6a103fed03d3940007b1c1aa', // Netzleistung (W)
   sensorYieldTotal: '6a103fed03d3940007b1c1ab', // Gesamtertrag WR (kWh)
   sensorGridTotal:  '6a103fed03d3940007b1c1ac', // Netzbezug gesamt (kWh)
+  sensorYieldDay:   '6a10436e03d3940007b702ed', // Tagesertrag (kWh)
+  sensorGridDay:    '6a10436e03d3940007b702ef', // Netzbezug heute (kWh)
   sensorBatSOC:     '6a103fed03d3940007b1c1ad', // Batterie SOC (%) — '' wenn kein Marstek
   sensorBatPower:   '6a103fed03d3940007b1c1ae', // Batterieleistung (W)
 
@@ -255,31 +257,34 @@ const CONFIG = {
 const OSM_BASE = 'https://api.opensensemap.org';
 
 let lineChart, donutChart, barChart;
-let dayStartYield = null;
-let dayStartGrid  = null;
-let currentDay    = -1;
 
 function fmtTime(iso) {
   const d = new Date(iso);
   return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
 }
 
-function isoDay(date, time = '00:00:00') {
+function isoDay(date, time = 'start') {
+  // Lokale Mitternacht in UTC umrechnen — korrekt für CET/CEST
   const pad = n => n.toString().padStart(2, '0');
-  return `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}T${time}Z`;
+  const dateStr = `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}`;
+  if (time === 'start') {
+    const start = new Date(`${dateStr}T00:00:00`); // lokale Mitternacht
+    return start.toISOString();
+  } else {
+    const end = new Date(`${dateStr}T23:59:59`);   // lokales Tagesende
+    return end.toISOString();
+  }
 }
 
 // Letzten N Messwerte eines Sensors holen
-// GET /boxes/:boxId/data/:sensorId?format=json&limit=N
 async function fetchSensor(sensorId, limit = 1) {
   const url = `${OSM_BASE}/boxes/${CONFIG.boxId}/data/${sensorId}?format=json&limit=${limit}`;
   const res  = await fetch(url);
   if (!res.ok) throw new Error(`OSM ${res.status}: ${sensorId}`);
-  return res.json(); // Array von { value, createdAt }
+  return res.json();
 }
 
 // Messwerte eines Sensors in einem Zeitraum holen
-// GET /boxes/:boxId/data/:sensorId?from-date=...&to-date=...&format=json
 async function fetchSensorRange(sensorId, fromISO, toISO) {
   const url = `${OSM_BASE}/boxes/${CONFIG.boxId}/data/${sensorId}` +
               `?from-date=${encodeURIComponent(fromISO)}&to-date=${encodeURIComponent(toISO)}&format=json`;
@@ -288,69 +293,30 @@ async function fetchSensorRange(sensorId, fromISO, toISO) {
   return res.json();
 }
 
-// Tagesstartwert bestimmen (letzter Wert von gestern)
-async function fetchDayStart() {
-  const yesterday = new Date(Date.now() - 86400000);
-  const fromISO   = isoDay(yesterday, '00:00:00');
-  const toISO     = isoDay(yesterday, '23:59:59');
-
-  try {
-    const [yldData, gridData] = await Promise.all([
-      fetchSensorRange(CONFIG.sensorYieldTotal, fromISO, toISO),
-      fetchSensorRange(CONFIG.sensorGridTotal,  fromISO, toISO),
-    ]);
-
-    if (yldData.length > 0 && gridData.length > 0) {
-      // openSenseMap liefert neueste zuerst → Index 0 ist der späteste Wert
-      dayStartYield = parseFloat(yldData[0].value)  || 0;
-      dayStartGrid  = parseFloat(gridData[0].value) || 0;
-      console.log('DayStart (letzter Wert gestern):', dayStartYield, dayStartGrid);
-    } else {
-      // Kein gestriger Wert → ersten heutigen Wert verwenden
-      const today = new Date();
-      const [y2, g2] = await Promise.all([
-        fetchSensorRange(CONFIG.sensorYieldTotal, isoDay(today,'00:00:00'), isoDay(today,'23:59:59')),
-        fetchSensorRange(CONFIG.sensorGridTotal,  isoDay(today,'00:00:00'), isoDay(today,'23:59:59')),
-      ]);
-      // ältester Wert steht am Ende des Arrays
-      dayStartYield = y2.length > 0 ? (parseFloat(y2[y2.length - 1].value) || 0) : 0;
-      dayStartGrid  = g2.length > 0 ? (parseFloat(g2[g2.length - 1].value) || 0) : 0;
-      console.log('DayStart (erster Wert heute):', dayStartYield, dayStartGrid);
-    }
-  } catch(e) {
-    console.warn('DayStart Fehler:', e);
-  }
-}
-
 async function fetchData() {
   try {
-    // Tagesstart einmal pro Tag holen
-    const today = new Date().getDate();
-    if (today !== currentDay || dayStartYield === null) {
-      await fetchDayStart();
-      currentDay = today;
-    }
-
-    // Aktuelle Werte aller Sensoren parallel laden
-    const [pvData, gridData, yldData, gridTotData] = await Promise.all([
+    // Alle aktuellen Werte parallel laden — Tageszähler kommen direkt vom ESP
+    const [pvData, gridData, yldTotData, gridTotData, yldDayData, gridDayData] = await Promise.all([
       fetchSensor(CONFIG.sensorPVPower,    1),
       fetchSensor(CONFIG.sensorGridPower,  1),
       fetchSensor(CONFIG.sensorYieldTotal, 1),
       fetchSensor(CONFIG.sensorGridTotal,  1),
+      fetchSensor(CONFIG.sensorYieldDay,   1),
+      fetchSensor(CONFIG.sensorGridDay,    1),
     ]);
 
     const pv        = parseFloat(pvData[0]?.value)      || 0;
     const grid      = parseFloat(gridData[0]?.value)    || 0;
-    const yldTotal  = parseFloat(yldData[0]?.value)     || 0;
+    const yldTotal  = parseFloat(yldTotData[0]?.value)  || 0;
     const gridTotal = parseFloat(gridTotData[0]?.value) || 0;
 
-    // Tageswerte
-    const yld       = dayStartYield !== null ? Math.max(0, yldTotal  - dayStartYield) : 0;
-    const netzbezug = dayStartGrid  !== null ? Math.max(0, gridTotal - dayStartGrid)  : 0;
+    // Tageswerte direkt aus dedizierten Sensoren — kein fetchDayStart() nötig
+    const yld        = parseFloat(yldDayData[0]?.value)  || 0;
+    const netzbezug  = parseFloat(gridDayData[0]?.value) || 0;
     const totalConsumption = Math.max(0, pv + grid);
-    const verbrauch = yld + netzbezug;
+    const verbrauch  = yld + netzbezug;
     const einsparung = yld * CONFIG.strompreis;
-    const autarkie  = verbrauch > 0 ? Math.min((yld / verbrauch) * 100, 100) : 0;
+    const autarkie   = verbrauch > 0 ? Math.min((yld / verbrauch) * 100, 100) : 0;
 
     // Echtzeit anzeigen
     document.getElementById('v-pv').textContent  = Math.round(pv);
@@ -412,8 +378,8 @@ async function fetchData() {
     // Linienchart — letzten N Werte laden
     const today2 = new Date();
     const [pvHist, gridHist] = await Promise.all([
-      fetchSensorRange(CONFIG.sensorPVPower,   isoDay(today2,'00:00:00'), isoDay(today2,'23:59:59')),
-      fetchSensorRange(CONFIG.sensorGridPower, isoDay(today2,'00:00:00'), isoDay(today2,'23:59:59')),
+      fetchSensorRange(CONFIG.sensorPVPower,   isoDay(today2,'start'), isoDay(today2,'end')),
+      fetchSensorRange(CONFIG.sensorGridPower, isoDay(today2,'start'), isoDay(today2,'end')),
     ]);
     // openSenseMap liefert neueste zuerst → umkehren für Zeitachse
     pvHist.reverse();
@@ -453,8 +419,8 @@ async function fetchWeekData() {
       const dateStr = `${date.getFullYear()}-${pad(date.getMonth()+1)}-${pad(date.getDate())}`;
       labels.push(date.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }));
 
-      const fromISO = `${dateStr}T00:00:00Z`;
-      const toISO   = `${dateStr}T23:59:59Z`;
+      const fromISO = isoDay(date, 'start'); // lokale Mitternacht → UTC
+      const toISO   = isoDay(date, 'end');
 
       try {
         const [yldDay, gridDay] = await Promise.all([
