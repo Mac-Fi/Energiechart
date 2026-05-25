@@ -320,16 +320,15 @@ async function fetchDayStart() {
   const json = await res.json();
 
   if (json.feeds && json.feeds.length > 0) {
-    // field3: höchsten Wert nehmen — schützt vor openDTU-Reset am Abend
-    // field4: letzten Wert nehmen — monoton steigend, kein Reset-Problem
-    const maxField3  = Math.max(...json.feeds.map(f => parseFloat(f.field3) || 0));
-    const lastField4 = parseFloat(json.feeds[json.feeds.length - 1].field4) || 0;
-    dayStartYield = maxField3;
-    dayStartGrid  = lastField4;
-    console.log('DayStart:', dayStartYield, dayStartGrid);
+    // Beide Felder: höchsten Wert nehmen
+    // field3: schützt vor openDTU-Reset
+    // field4: absoluter Shelly-Zähler, steigt immer — höchster = letzter korrekter Wert
+    dayStartYield = Math.max(...json.feeds.map(f => parseFloat(f.field3) || 0));
+    dayStartGrid  = Math.max(...json.feeds.map(f => parseFloat(f.field4) || 0));
+    console.log('DayStart (gestern):', dayStartYield, dayStartGrid);
   } else {
     // Kein gestriger Wert — ersten heutigen Wert nehmen
-    const todayStr  = todayLocalISO();
+    const todayStr      = todayLocalISO();
     const startTodayUTC = new Date(new Date(todayStr + 'T00:00:00').getTime() - offsetMs);
     const endTodayUTC   = new Date(new Date(todayStr + 'T23:59:59').getTime() - offsetMs);
     const url2 = `${TS_BASE}/${CONFIG.channelId}/feeds.json?api_key=${CONFIG.apiKey}&start=${startTodayUTC.toISOString()}&end=${endTodayUTC.toISOString()}&results=1`;
@@ -528,12 +527,12 @@ async function fetchWeekData() {
           const startTime = new Date(startUTC).getTime();
           const endTime   = new Date(endUTC).getTime();
           if (firstTime >= startTime && firstTime <= endTime) {
-            // field3: höchsten Wert nehmen — schützt vor openDTU-Reset
-            // field4: letzten Wert nehmen — monoton steigend, kein Reset-Problem
+            // field3: höchsten Wert — schützt vor openDTU-Reset
+            // field4: höchsten Wert — absoluter Shelly-Zähler, steigt immer
             const maxField3  = Math.max(...jsonLast.feeds.map(f => parseFloat(f.field3) || 0));
-            const lastField4 = parseFloat(jsonLast.feeds[jsonLast.feeds.length - 1].field4) || 0;
-            e = Math.max(0, maxField3  - (parseFloat(first.field3) || 0));
-            b = Math.max(0, lastField4 - (parseFloat(first.field4) || 0));
+            const maxField4  = Math.max(...jsonLast.feeds.map(f => parseFloat(f.field4) || 0));
+            e = Math.max(0, maxField3 - (parseFloat(first.field3) || 0));
+            b = Math.max(0, maxField4 - (parseFloat(first.field4) || 0));
           }
         }
       }
