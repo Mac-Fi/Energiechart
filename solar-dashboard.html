@@ -170,6 +170,15 @@
     <div class="card-value" id="v-bat-wrap"><span id="v-bat-power">—</span><span class="card-unit">W</span></div>
     <div class="card-sub" id="v-bat-hint"></div>
   </div>
+  <div class="card" id="card-wb" style="display:none;">
+    <div class="card-label"><span class="card-dot" style="background:#22C55E"></span>Wallbox</div>
+    <div class="card-value" style="color:#22C55E"><span id="v-wb-power">—</span><span class="card-unit">W</span></div>
+    <div class="card-sub" id="v-wb-hint"></div>
+  </div>
+  <div class="card" id="card-wb-session" style="display:none;">
+    <div class="card-label"><span class="card-dot" style="background:#22C55E"></span>Session</div>
+    <div class="card-value" style="color:#22C55E"><span id="v-wb-session">—</span><span class="card-unit">Wh</span></div>
+  </div>
 </div>
 
 <div class="section-title">Heute</div>
@@ -244,6 +253,9 @@ const CONFIG = {
   sensorGridDay:    '6a10436e03d3940007b702ef', // Netzbezug heute (kWh)
   sensorBatSOC:     '6a103fed03d3940007b1c1ad', // Batterie SOC (%) — '' wenn kein Marstek
   sensorBatPower:   '6a103fed03d3940007b1c1ae', // Batterieleistung (W)
+  sensorWBPower:    '6a21433dcb19b2000778f0f2', // WB Ladeleistung (W)
+  sensorWBSession:  '6a21433dcb19b2000778f0f4', // WB Session (Wh)
+  sensorWBStatus:   '6a21433dcb19b2000778f0f6', // WB Status (1-4)
 
   strompreis:     0.29,   // €/kWh
   updateInterval: 30000,  // ms
@@ -376,6 +388,22 @@ async function fetchData() {
       } catch(e) { console.warn('Batterie-Daten Fehler:', e); }
     }
 
+    // Wallbox — Werte aus dem bereits geladenen fetchAllSensors() Cache
+    const wbStatus  = Math.round(sensorVal(CONFIG.sensorWBStatus));
+    const wbPower   = sensorVal(CONFIG.sensorWBPower);
+    const wbSession = sensorVal(CONFIG.sensorWBSession);
+    if (wbStatus > 0) {
+      document.getElementById('card-wb').style.display         = '';
+      document.getElementById('card-wb-session').style.display = '';
+      document.getElementById('v-wb-power').textContent   = Math.round(wbPower);
+      document.getElementById('v-wb-session').textContent = Math.round(wbSession);
+      const wbHint = document.getElementById('v-wb-hint');
+      if      (wbStatus === 1) wbHint.textContent = '— Kein Auto';
+      else if (wbStatus === 2) wbHint.textContent = '⚡ Lädt';
+      else if (wbStatus === 3) wbHint.textContent = '⏳ Wartet';
+      else if (wbStatus === 4) wbHint.textContent = '✅ Fertig';
+    }
+
     // Linienchart — letzten N Werte laden
     const today2 = new Date();
     const [pvHist, gridHist] = await Promise.all([
@@ -394,7 +422,7 @@ async function fetchData() {
 
     updateLineChart(labels, pvVals, gridVals, consVals);
     updateDonut(autarkie);
-    fetchWeekData();
+    updateWeekChart();
 
     const now = new Date();
     document.getElementById('last-update').innerHTML =
@@ -406,56 +434,94 @@ async function fetchData() {
   }
 }
 
-async function fetchWeekData() {
-  try {
-    // Alle 7 Tage vollständig parallel — statt sequentieller Schleife
-    const days = Array.from({ length: 7 }, (_, i) => {
-      const date = new Date();
-      date.setDate(date.getDate() - (6 - i));
-      return date;
-    });
+// Wochenchart-State
+const weekState = {
+  labels:     Array(7).fill(''),
+  ertrag:     Array(7).fill(0),
+  bezug:      Array(7).fill(0),
+  autarkieW:  Array(7).fill(0),
+  lastPastUpdate: 0, // Timestamp letztes Update der 6 vergangenen Tage
+};
 
-    const labels = days.map(d => d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }));
-
-    // 14 Requests alle gleichzeitig feuern
-    const requests = days.flatMap(date => [
-      fetchSensorRange(CONFIG.sensorYieldTotal, isoDay(date,'start'), isoDay(date,'end')),
-      fetchSensorRange(CONFIG.sensorGridTotal,  isoDay(date,'start'), isoDay(date,'end')),
-    ]);
-    const results = await Promise.allSettled(requests);
-
-    const ertrag    = [];
-    const bezug     = [];
-    const autarkieW = [];
-
-    for (let i = 0; i < 7; i++) {
-      const yldRes  = results[i * 2];
-      const gridRes = results[i * 2 + 1];
-      if (yldRes.status === 'fulfilled' && gridRes.status === 'fulfilled') {
-        const yldDay  = yldRes.value;
-        const gridDay = gridRes.value;
-        if (yldDay.length > 1 && gridDay.length > 1) {
-          const e = Math.max(0,
-            (parseFloat(yldDay[0].value)               || 0) -
-            (parseFloat(yldDay[yldDay.length-1].value)  || 0));
-          const b = Math.max(0,
-            (parseFloat(gridDay[0].value)               || 0) -
-            (parseFloat(gridDay[gridDay.length-1].value) || 0));
-          const v = e + b;
-          ertrag.push(parseFloat(e.toFixed(2)));
-          bezug.push(parseFloat(b.toFixed(2)));
-          autarkieW.push(v > 0 ? parseFloat(Math.min((e / v) * 100, 100).toFixed(1)) : 0);
-        } else {
-          ertrag.push(0); bezug.push(0); autarkieW.push(0);
-        }
-      } else {
-        ertrag.push(0); bezug.push(0); autarkieW.push(0);
-      }
-    }
-    updateBarChart(labels, ertrag, bezug, autarkieW);
-  } catch(e) {
-    console.error('Wochendaten Fehler:', e);
+// Einen Tag aus OSM-Daten berechnen
+function calcDay(yldData, gridData) {
+  if (yldData.length > 1 && gridData.length > 1) {
+    const e = Math.max(0,
+      (parseFloat(yldData[0].value)                || 0) -
+      (parseFloat(yldData[yldData.length-1].value)  || 0));
+    const b = Math.max(0,
+      (parseFloat(gridData[0].value)               || 0) -
+      (parseFloat(gridData[gridData.length-1].value) || 0));
+    const v = e + b;
+    return {
+      ertrag:    parseFloat(e.toFixed(2)),
+      bezug:     parseFloat(b.toFixed(2)),
+      autarkieW: v > 0 ? parseFloat(Math.min((e / v) * 100, 100).toFixed(1)) : 0,
+    };
   }
+  return { ertrag: 0, bezug: 0, autarkieW: 0 };
+}
+
+// 6 vergangene Tage laden — einmal beim Start, dann stündlich
+async function fetchPastDays() {
+  const days = Array.from({ length: 6 }, (_, i) => {
+    const date = new Date();
+    date.setDate(date.getDate() - (6 - i));
+    return date;
+  });
+
+  // Labels für alle 7 Tage setzen (heute kommt separat)
+  const today = new Date();
+  weekState.labels = [
+    ...days.map(d => d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })),
+    today.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }),
+  ];
+
+  // 12 Requests parallel für die 6 vergangenen Tage
+  const requests = days.flatMap(date => [
+    fetchSensorRange(CONFIG.sensorYieldTotal, isoDay(date,'start'), isoDay(date,'end')),
+    fetchSensorRange(CONFIG.sensorGridTotal,  isoDay(date,'start'), isoDay(date,'end')),
+  ]);
+  const results = await Promise.allSettled(requests);
+
+  for (let i = 0; i < 6; i++) {
+    const r = results[i * 2].status === 'fulfilled' && results[i * 2 + 1].status === 'fulfilled'
+      ? calcDay(results[i * 2].value, results[i * 2 + 1].value)
+      : { ertrag: 0, bezug: 0, autarkieW: 0 };
+    weekState.ertrag[i]    = r.ertrag;
+    weekState.bezug[i]     = r.bezug;
+    weekState.autarkieW[i] = r.autarkieW;
+  }
+  weekState.lastPastUpdate = Date.now();
+}
+
+// Nur heutigen Tag aktualisieren — bei jedem 30s-Update
+async function fetchTodayBar() {
+  const today = new Date();
+  const [yldRes, gridRes] = await Promise.allSettled([
+    fetchSensorRange(CONFIG.sensorYieldTotal, isoDay(today,'start'), isoDay(today,'end')),
+    fetchSensorRange(CONFIG.sensorGridTotal,  isoDay(today,'start'), isoDay(today,'end')),
+  ]);
+  const r = yldRes.status === 'fulfilled' && gridRes.status === 'fulfilled'
+    ? calcDay(yldRes.value, gridRes.value)
+    : { ertrag: 0, bezug: 0, autarkieW: 0 };
+  weekState.ertrag[6]    = r.ertrag;
+  weekState.bezug[6]     = r.bezug;
+  weekState.autarkieW[6] = r.autarkieW;
+}
+
+// Orchestrator — wird bei jedem fetchData()-Aufruf aufgerufen
+async function updateWeekChart() {
+  const ONE_HOUR = 60 * 60 * 1000;
+  const needsPastUpdate = weekState.lastPastUpdate === 0 ||
+                          (Date.now() - weekState.lastPastUpdate) >= ONE_HOUR;
+
+  if (needsPastUpdate) {
+    await Promise.all([fetchPastDays(), fetchTodayBar()]);
+  } else {
+    await fetchTodayBar();
+  }
+  updateBarChart(weekState.labels, weekState.ertrag, weekState.bezug, weekState.autarkieW);
 }
 
 
