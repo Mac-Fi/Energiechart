@@ -170,15 +170,21 @@
     <div class="card-value" id="v-bat-wrap"><span id="v-bat-power">—</span><span class="card-unit">W</span></div>
     <div class="card-sub" id="v-bat-hint"></div>
   </div>
-  <div class="card" id="card-wb" style="display:none;">
-    <div class="card-label"><span class="card-dot" style="background:#22C55E"></span>Wallbox</div>
-    <div class="card-value" style="color:#22C55E"><span id="v-wb-power">—</span><span class="card-unit">W</span></div>
+</div>
+
+<div class="section-title" id="section-laden" style="display:none;">Laden</div>
+<div class="cards" id="cards-laden" style="display:none;">
+  <div class="card">
+    <div class="card-label"><span class="card-dot" style="background:#22C55E"></span>Ladeleistung</div>
+    <div class="card-value" style="color:#22C55E"><span id="v-wb-power">—</span><span class="card-unit">kW</span></div>
     <div class="card-sub" id="v-wb-hint"></div>
   </div>
-  <div class="card" id="card-wb-session" style="display:none;">
+  <div class="card">
     <div class="card-label"><span class="card-dot" style="background:#22C55E"></span>Session</div>
-    <div class="card-value" style="color:#22C55E"><span id="v-wb-session">—</span><span class="card-unit">Wh</span></div>
+    <div class="card-value" style="color:#22C55E"><span id="v-wb-session">—</span><span class="card-unit">kWh</span></div>
+    <div class="card-sub" id="v-wb-session-pct"></div>
   </div>
+
 </div>
 
 <div class="section-title">Heute</div>
@@ -390,18 +396,34 @@ async function fetchData() {
 
     // Wallbox — Werte aus dem bereits geladenen fetchAllSensors() Cache
     const wbStatus  = Math.round(sensorVal(CONFIG.sensorWBStatus));
-    const wbPower   = sensorVal(CONFIG.sensorWBPower);
-    const wbSession = sensorVal(CONFIG.sensorWBSession);
+    const wbPower   = sensorVal(CONFIG.sensorWBPower);   // W
+    const wbSession = sensorVal(CONFIG.sensorWBSession); // Wh
+
     if (wbStatus > 0) {
-      document.getElementById('card-wb').style.display         = '';
-      document.getElementById('card-wb-session').style.display = '';
-      document.getElementById('v-wb-power').textContent   = Math.round(wbPower);
-      document.getElementById('v-wb-session').textContent = Math.round(wbSession);
+      // Sektion immer anzeigen wenn WB Daten vorhanden
+      document.getElementById('section-laden').style.display = '';
+      document.getElementById('cards-laden').style.display   = '';
+
+      // Ladeleistung in kW
+      document.getElementById('v-wb-power').textContent = (wbPower / 1000).toFixed(2);
+
+      // Session in kWh
+      const sessionKwh = wbSession / 1000;
+      document.getElementById('v-wb-session').textContent = sessionKwh.toFixed(2);
+      document.getElementById('v-wb-session-pct').textContent =
+        sessionKwh > 0 ? `in dieser Session geladen` : '';
+
+      // Status
       const wbHint = document.getElementById('v-wb-hint');
       if      (wbStatus === 1) wbHint.textContent = '— Kein Auto';
       else if (wbStatus === 2) wbHint.textContent = '⚡ Lädt';
       else if (wbStatus === 3) wbHint.textContent = '⏳ Wartet';
       else if (wbStatus === 4) wbHint.textContent = '✅ Fertig';
+
+
+    } else {
+      document.getElementById('section-laden').style.display = 'none';
+      document.getElementById('cards-laden').style.display   = 'none';
     }
 
     // Linienchart — letzten N Werte laden
