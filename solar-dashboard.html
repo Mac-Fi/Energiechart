@@ -404,21 +404,27 @@ async function fetchData() {
       document.getElementById('section-laden').style.display = '';
       document.getElementById('cards-laden').style.display   = '';
 
-      // Ladeleistung in kW
-      document.getElementById('v-wb-power').textContent = (wbPower / 1000).toFixed(2);
-
-      // Session in kWh
-      const sessionKwh = wbSession / 1000;
-      document.getElementById('v-wb-session').textContent = sessionKwh.toFixed(2);
-      document.getElementById('v-wb-session-pct').textContent =
-        sessionKwh > 0 ? `in dieser Session geladen` : '';
-
       // Status
       const wbHint = document.getElementById('v-wb-hint');
       if      (wbStatus === 1) wbHint.textContent = '— Kein Auto';
       else if (wbStatus === 2) wbHint.textContent = '⚡ Lädt';
       else if (wbStatus === 3) wbHint.textContent = '⏳ Wartet';
       else if (wbStatus === 4) wbHint.textContent = '✅ Fertig';
+
+      // Ladeleistung — nur wenn aktiv lädt, sonst 0
+      const activePower = wbStatus === 2 ? wbPower : 0;
+      document.getElementById('v-wb-power').textContent = (activePower / 1000).toFixed(2);
+
+      // Session in kWh
+      const sessionKwh = wbSession / 1000;
+      document.getElementById('v-wb-session').textContent = sessionKwh.toFixed(2);
+
+      // Session-Hinweis je nach Status
+      const sessHint = document.getElementById('v-wb-session-pct');
+      if      (wbStatus === 2) sessHint.textContent = sessionKwh > 0 ? 'in dieser Session' : '';
+      else if (wbStatus === 3) sessHint.textContent = sessionKwh > 0 ? 'in dieser Session' : '';
+      else if (wbStatus === 4) sessHint.textContent = sessionKwh > 0 ? 'in letzter Session' : '';
+      else if (wbStatus === 1) sessHint.textContent = sessionKwh > 0 ? 'in letzter Session' : '';
 
 
     } else {
