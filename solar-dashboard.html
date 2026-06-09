@@ -481,26 +481,20 @@ const weekState = {
   lastPastUpdate: 0, // Timestamp letztes Update der 6 vergangenen Tage
 };
 
-// Einen Tag aus OSM-Daten berechnen
-function calcDay(yldData, gridData) {
-  if (yldData.length > 1 && gridData.length > 1) {
-    const e = Math.max(0,
-      (parseFloat(yldData[0].value)                || 0) -
-      (parseFloat(yldData[yldData.length-1].value)  || 0));
-    const b = Math.max(0,
-      (parseFloat(gridData[0].value)               || 0) -
-      (parseFloat(gridData[gridData.length-1].value) || 0));
-    const v = e + b;
-    return {
-      ertrag:    parseFloat(e.toFixed(2)),
-      bezug:     parseFloat(b.toFixed(2)),
-      autarkieW: v > 0 ? parseFloat(Math.min((e / v) * 100, 100).toFixed(1)) : 0,
-    };
-  }
-  return { ertrag: 0, bezug: 0, autarkieW: 0 };
+// Einen Tag aus den direkten Tagessensoren berechnen (letzter Wert des Tages)
+function dayFromLastVal(yldDayData, gridDayData) {
+  const e = parseFloat(yldDayData[0]?.value)  || 0; // letzter Wert = höchster Tageswert
+  const b = parseFloat(gridDayData[0]?.value) || 0;
+  const v = e + b;
+  return {
+    ertrag:    parseFloat(Math.max(0, e).toFixed(2)),
+    bezug:     parseFloat(Math.max(0, b).toFixed(2)),
+    autarkieW: v > 0 ? parseFloat(Math.min((e / v) * 100, 100).toFixed(1)) : 0,
+  };
 }
 
-// 6 vergangene Tage laden — einmal beim Start, dann stündlich
+// 6 vergangene Tage laden — direkt aus sensorYieldDay und sensorGridDay
+// Diese Sensoren enthalten den vom ESP korrekt berechneten Tageswert
 async function fetchPastDays() {
   const days = Array.from({ length: 6 }, (_, i) => {
     const date = new Date();
@@ -508,23 +502,22 @@ async function fetchPastDays() {
     return date;
   });
 
-  // Labels für alle 7 Tage setzen (heute kommt separat)
   const today = new Date();
   weekState.labels = [
     ...days.map(d => d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' })),
     today.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }),
   ];
 
-  // 12 Requests parallel für die 6 vergangenen Tage
+  // 12 Requests parallel — direkte Tagessensoren statt Gesamtzähler-Differenz
   const requests = days.flatMap(date => [
-    fetchSensorRange(CONFIG.sensorYieldTotal, isoDay(date,'start'), isoDay(date,'end')),
-    fetchSensorRange(CONFIG.sensorGridTotal,  isoDay(date,'start'), isoDay(date,'end')),
+    fetchSensorRange(CONFIG.sensorYieldDay, isoDay(date,'start'), isoDay(date,'end')),
+    fetchSensorRange(CONFIG.sensorGridDay,  isoDay(date,'start'), isoDay(date,'end')),
   ]);
   const results = await Promise.allSettled(requests);
 
   for (let i = 0; i < 6; i++) {
     const r = results[i * 2].status === 'fulfilled' && results[i * 2 + 1].status === 'fulfilled'
-      ? calcDay(results[i * 2].value, results[i * 2 + 1].value)
+      ? dayFromLastVal(results[i * 2].value, results[i * 2 + 1].value)
       : { ertrag: 0, bezug: 0, autarkieW: 0 };
     weekState.ertrag[i]    = r.ertrag;
     weekState.bezug[i]     = r.bezug;
@@ -537,11 +530,11 @@ async function fetchPastDays() {
 async function fetchTodayBar() {
   const today = new Date();
   const [yldRes, gridRes] = await Promise.allSettled([
-    fetchSensorRange(CONFIG.sensorYieldTotal, isoDay(today,'start'), isoDay(today,'end')),
-    fetchSensorRange(CONFIG.sensorGridTotal,  isoDay(today,'start'), isoDay(today,'end')),
+    fetchSensorRange(CONFIG.sensorYieldDay, isoDay(today,'start'), isoDay(today,'end')),
+    fetchSensorRange(CONFIG.sensorGridDay,  isoDay(today,'start'), isoDay(today,'end')),
   ]);
   const r = yldRes.status === 'fulfilled' && gridRes.status === 'fulfilled'
-    ? calcDay(yldRes.value, gridRes.value)
+    ? dayFromLastVal(yldRes.value, gridRes.value)
     : { ertrag: 0, bezug: 0, autarkieW: 0 };
   weekState.ertrag[6]    = r.ertrag;
   weekState.bezug[6]     = r.bezug;
