@@ -110,6 +110,19 @@
 
   .chart-wrap { position: relative; height: 200px; }
 
+  .toggle-bar {
+    display: flex; gap: 6px; margin-bottom: 10px;
+  }
+  .toggle-btn {
+    font-size: 11px; font-weight: 500; padding: 4px 12px;
+    border-radius: 6px; border: 0.5px solid #2c2c2a;
+    background: transparent; color: #888780; cursor: pointer;
+    transition: all 0.15s;
+  }
+  .toggle-btn.active {
+    background: #EF9F27; color: #111112; border-color: #EF9F27;
+  }
+
   .autarkie-wrap {
     display: flex; flex-direction: column;
     align-items: center; justify-content: center; height: 200px;
@@ -221,7 +234,11 @@
 
 <div class="charts">
   <div class="chart-card">
-    <h2>Verlauf heute</h2>
+    <h2>Verlauf</h2>
+    <div class="toggle-bar">
+      <button class="toggle-btn active" id="btn-momentan" onclick="setVerlaufMode('momentan')">Momentan</button>
+      <button class="toggle-btn"        id="btn-tag"      onclick="setVerlaufMode('tag')">Tag</button>
+    </div>
     <div class="chart-wrap"><canvas id="lineChart"></canvas></div>
   </div>
   <div class="chart-card">
@@ -275,6 +292,14 @@ const CONFIG = {
 const OSM_BASE = 'https://api.opensensemap.org';
 
 let lineChart, donutChart, barChart;
+let verlaufMode = 'momentan'; // 'momentan' oder 'tag'
+
+function setVerlaufMode(mode) {
+  verlaufMode = mode;
+  document.getElementById('btn-momentan').classList.toggle('active', mode === 'momentan');
+  document.getElementById('btn-tag').classList.toggle('active', mode === 'tag');
+  fetchVerlauf();
+}
 
 function fmtTime(iso) {
   const d = new Date(iso);
@@ -432,23 +457,8 @@ async function fetchData() {
       document.getElementById('cards-laden').style.display   = 'none';
     }
 
-    // Linienchart — letzten N Werte laden
-    const today2 = new Date();
-    const [pvHist, gridHist] = await Promise.all([
-      fetchSensorRange(CONFIG.sensorPVPower,   isoDay(today2,'start'), isoDay(today2,'end')),
-      fetchSensorRange(CONFIG.sensorGridPower, isoDay(today2,'start'), isoDay(today2,'end')),
-    ]);
-    // openSenseMap liefert neueste zuerst → umkehren für Zeitachse
-    pvHist.reverse();
-    gridHist.reverse();
-
-    // Gemeinsame Zeitstempel (PV als Referenz)
-    const labels   = pvHist.slice(-CONFIG.verlaufPunkte).map(d => fmtTime(d.createdAt));
-    const pvVals   = pvHist.slice(-CONFIG.verlaufPunkte).map(d => parseFloat(d.value) || 0);
-    const gridVals = gridHist.slice(-CONFIG.verlaufPunkte).map(d => parseFloat(d.value) || 0);
-    const consVals = pvVals.map((p, i) => Math.max(0, p + (gridVals[i] || 0)));
-
-    updateLineChart(labels, pvVals, gridVals, consVals);
+    // Linienchart separat laden
+    fetchVerlauf();
     updateDonut(autarkie);
     updateWeekChart();
 
@@ -552,6 +562,41 @@ async function updateWeekChart() {
   updateBarChart(weekState.labels, weekState.ertrag, weekState.bezug, weekState.autarkieW);
 }
 
+
+async function fetchVerlauf() {
+  try {
+    let pvHist, gridHist;
+    const today = new Date();
+
+    if (verlaufMode === 'momentan') {
+      // Letzte 60 Punkte — schnell
+      [pvHist, gridHist] = await Promise.all([
+        fetchSensorRange(CONFIG.sensorPVPower,   isoDay(today,'start'), isoDay(today,'end')),
+        fetchSensorRange(CONFIG.sensorGridPower, isoDay(today,'start'), isoDay(today,'end')),
+      ]);
+      pvHist.reverse();
+      gridHist.reverse();
+      pvHist   = pvHist.slice(-CONFIG.verlaufPunkte);
+      gridHist = gridHist.slice(-CONFIG.verlaufPunkte);
+    } else {
+      // Ganzer Tag
+      [pvHist, gridHist] = await Promise.all([
+        fetchSensorRange(CONFIG.sensorPVPower,   isoDay(today,'start'), isoDay(today,'end')),
+        fetchSensorRange(CONFIG.sensorGridPower, isoDay(today,'start'), isoDay(today,'end')),
+      ]);
+      pvHist.reverse();
+      gridHist.reverse();
+    }
+
+    const labels   = pvHist.map(d => fmtTime(d.createdAt));
+    const pvVals   = pvHist.map(d => parseFloat(d.value) || 0);
+    const gridVals = gridHist.map(d => parseFloat(d.value) || 0);
+    const consVals = pvVals.map((p, i) => Math.max(0, p + (gridVals[i] || 0)));
+    updateLineChart(labels, pvVals, gridVals, consVals);
+  } catch(e) {
+    console.error('Verlauf Fehler:', e);
+  }
+}
 
 function updateLineChart(labels, pv, grid, cons) {
   const ctx = document.getElementById('lineChart').getContext('2d');
