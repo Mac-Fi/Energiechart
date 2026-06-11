@@ -558,51 +558,59 @@ async function updateWeekChart() {
 
 async function fetchVerlauf() {
   try {
-    let pvHist, gridHist;
+    let pvHist, gridHist, batHist = [];
     const today = new Date();
+    const hasBat = !!CONFIG.sensorBatPower;
 
     if (verlaufMode === 'momentan') {
-      // Letzte 60 Punkte — schnell
-      [pvHist, gridHist] = await Promise.all([
+      const promises = [
         fetchSensorRange(CONFIG.sensorPVPower,   isoDay(today,'start'), isoDay(today,'end')),
         fetchSensorRange(CONFIG.sensorGridPower, isoDay(today,'start'), isoDay(today,'end')),
-      ]);
-      pvHist.reverse();
-      gridHist.reverse();
-      pvHist   = pvHist.slice(-CONFIG.verlaufPunkte);
-      gridHist = gridHist.slice(-CONFIG.verlaufPunkte);
+      ];
+      if (hasBat) promises.push(fetchSensorRange(CONFIG.sensorBatPower, isoDay(today,'start'), isoDay(today,'end')));
+      const results = await Promise.all(promises);
+      pvHist   = results[0].reverse().slice(-CONFIG.verlaufPunkte);
+      gridHist = results[1].reverse().slice(-CONFIG.verlaufPunkte);
+      if (hasBat) batHist = results[2].reverse().slice(-CONFIG.verlaufPunkte);
     } else {
-      // Ganzer Tag
-      [pvHist, gridHist] = await Promise.all([
+      const promises = [
         fetchSensorRange(CONFIG.sensorPVPower,   isoDay(today,'start'), isoDay(today,'end')),
         fetchSensorRange(CONFIG.sensorGridPower, isoDay(today,'start'), isoDay(today,'end')),
-      ]);
-      pvHist.reverse();
-      gridHist.reverse();
+      ];
+      if (hasBat) promises.push(fetchSensorRange(CONFIG.sensorBatPower, isoDay(today,'start'), isoDay(today,'end')));
+      const results = await Promise.all(promises);
+      pvHist   = results[0].reverse();
+      gridHist = results[1].reverse();
+      if (hasBat) batHist = results[2].reverse();
     }
 
     const labels   = pvHist.map(d => fmtTime(d.createdAt));
     const pvVals   = pvHist.map(d => parseFloat(d.value) || 0);
     const gridVals = gridHist.map(d => parseFloat(d.value) || 0);
     const consVals = pvVals.map((p, i) => Math.max(0, p + (gridVals[i] || 0)));
-    updateLineChart(labels, pvVals, gridVals, consVals);
+    const batVals  = hasBat ? batHist.map(d => -(parseFloat(d.value) || 0)) : []; // Vorzeichen umkehren: Laden=positiv
+    updateLineChart(labels, pvVals, gridVals, consVals, batVals);
   } catch(e) {
     console.error('Verlauf Fehler:', e);
   }
 }
 
-function updateLineChart(labels, pv, grid, cons) {
+function updateLineChart(labels, pv, grid, cons, bat = []) {
   const ctx = document.getElementById('lineChart').getContext('2d');
   if (lineChart) lineChart.destroy();
+  const datasets = [
+    { label: 'PV (W)',              data: pv,   borderColor: '#EF9F27', backgroundColor: 'rgba(239,159,39,0.08)', borderWidth: 2,   pointRadius: 0, tension: 0.3, fill: true  },
+    { label: 'Netz (W)',            data: grid, borderColor: '#E24B4A', backgroundColor: 'rgba(226,75,74,0.06)',  borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false },
+    { label: 'Gesamtverbrauch (W)', data: cons, borderColor: '#378ADD', backgroundColor: 'rgba(55,138,221,0.06)', borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false },
+  ];
+  if (bat.length) datasets.push(
+    { label: 'Batterie (W)', data: bat, borderColor: '#1D9E75', backgroundColor: 'rgba(29,158,117,0.06)', borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false }
+  );
   lineChart = new Chart(ctx, {
     type: 'line',
     data: {
       labels,
-      datasets: [
-        { label: 'PV (W)',             data: pv,   borderColor: '#EF9F27', backgroundColor: 'rgba(239,159,39,0.08)', borderWidth: 2,   pointRadius: 0, tension: 0.3, fill: true  },
-        { label: 'Netz (W)',           data: grid, borderColor: '#E24B4A', backgroundColor: 'rgba(226,75,74,0.06)',  borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false },
-        { label: 'Gesamtverbrauch (W)', data: cons, borderColor: '#378ADD', backgroundColor: 'rgba(55,138,221,0.06)', borderWidth: 1.5, pointRadius: 0, tension: 0.3, fill: false },
-      ]
+      datasets
     },
     options: {
       responsive: true, maintainAspectRatio: false,
