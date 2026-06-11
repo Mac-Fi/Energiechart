@@ -412,8 +412,8 @@ async function fetchData() {
           const batWrap = document.getElementById('v-bat-wrap');
           const batHint = document.getElementById('v-bat-hint');
           document.getElementById('v-bat-power').textContent = Math.round(Math.abs(batPower));
-          if (batPower > 0)      { batWrap.style.color = '#1D9E75'; batHint.textContent = '↑ Laden'; }
-          else if (batPower < 0) { batWrap.style.color = '#F97316'; batHint.textContent = '↓ Entladen'; }
+          if (batPower < 0)      { batWrap.style.color = '#1D9E75'; batHint.textContent = '↑ Laden'; }
+          else if (batPower > 0) { batWrap.style.color = '#F97316'; batHint.textContent = '↓ Entladen'; }
           else                   { batWrap.style.color = '#888780'; batHint.textContent = '— Standby'; }
         }
       } catch(e) { console.warn('Batterie-Daten Fehler:', e); }
