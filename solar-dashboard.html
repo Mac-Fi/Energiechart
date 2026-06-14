@@ -276,6 +276,7 @@ const CONFIG = {
   sensorGridDay:    '6a10436e03d3940007b702ef', // Netzbezug heute (kWh)
   sensorBatSOC:     '6a103fed03d3940007b1c1ad', // Batterie SOC (%) — '' wenn kein Marstek
   sensorBatPower:   '6a103fed03d3940007b1c1ae', // Batterieleistung (W)
+  sensorGridRet:    '6a2ec48e06130b0008ec0f5f', // Einspeisung heute (kWh)
   sensorWBPower:    '6a21433dcb19b2000778f0f2', // WB Ladeleistung (W)
   sensorWBSession:  '6a21433dcb19b2000778f0f4', // WB Session (Wh)
   sensorWBStatus:   '6a21433dcb19b2000778f0f6', // WB Status (1-4)
@@ -360,10 +361,12 @@ async function fetchData() {
     // Tageswerte direkt aus dedizierten Sensoren — kein fetchDayStart() nötig
     const yld        = sensorVal(CONFIG.sensorYieldDay);
     const netzbezug  = sensorVal(CONFIG.sensorGridDay);
+    const einspeisung = sensorVal(CONFIG.sensorGridRet); // Einspeisung heute kWh
+    const eigenverbrauch = Math.max(0, yld - einspeisung); // echter Eigenverbrauch
     const totalConsumption = Math.max(0, pv + grid);
     const verbrauch  = yld + netzbezug;
-    const einsparung = yld * CONFIG.strompreis;
-    const autarkie   = verbrauch > 0 ? Math.min((yld / verbrauch) * 100, 100) : 0;
+    const einsparung = eigenverbrauch * CONFIG.strompreis; // nur Eigenverbrauch zählt
+    const autarkie   = verbrauch > 0 ? Math.min((eigenverbrauch / verbrauch) * 100, 100) : 0;
 
     // Echtzeit anzeigen
     document.getElementById('v-pv').textContent  = Math.round(pv);
