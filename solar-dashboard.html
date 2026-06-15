@@ -361,12 +361,10 @@ async function fetchData() {
     // Tageswerte direkt aus dedizierten Sensoren — kein fetchDayStart() nötig
     const yld        = sensorVal(CONFIG.sensorYieldDay);
     const netzbezug  = sensorVal(CONFIG.sensorGridDay);
-    const einspeisung = sensorVal(CONFIG.sensorGridRet); // Einspeisung heute kWh
-    const eigenverbrauch = Math.max(0, yld - einspeisung); // echter Eigenverbrauch
     const totalConsumption = Math.max(0, pv + grid);
     const verbrauch  = yld + netzbezug;
-    const einsparung = eigenverbrauch * CONFIG.strompreis; // nur Eigenverbrauch zählt
-    const autarkie   = verbrauch > 0 ? Math.min((eigenverbrauch / verbrauch) * 100, 100) : 0;
+    const einsparung = yld * CONFIG.strompreis; // Gesamtertrag = Eigenverbrauch (bilanziell keine Einspeisung)
+    const autarkie   = verbrauch > 0 ? Math.min((yld / verbrauch) * 100, 100) : 0;
 
     // Echtzeit anzeigen
     document.getElementById('v-pv').textContent  = Math.round(pv);
@@ -485,13 +483,13 @@ const weekState = {
 };
 
 // Einen Tag aus den direkten Tagessensoren berechnen (letzter Wert des Tages)
-function dayFromLastVal(yldDayData, gridDayData) {
-  const e = parseFloat(yldDayData[0]?.value)  || 0; // letzter Wert = höchster Tageswert
+function dayFromLastVal(yldDayData, gridDayData, gridRetData = []) {
+  const e = parseFloat(yldDayData[0]?.value) || 0;
   const b = parseFloat(gridDayData[0]?.value) || 0;
   const v = e + b;
   return {
     ertrag:    parseFloat(Math.max(0, e).toFixed(2)),
-    bezug:     parseFloat(Math.max(0, b).toFixed(2)),
+    bezug:     b < 0.05 ? 0 : parseFloat(Math.max(0, b).toFixed(2)), // unter 50Wh als 0 anzeigen
     autarkieW: v > 0 ? parseFloat(Math.min((e / v) * 100, 100).toFixed(1)) : 0,
   };
 }
@@ -511,16 +509,17 @@ async function fetchPastDays() {
     today.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit' }),
   ];
 
-  // 12 Requests parallel — direkte Tagessensoren statt Gesamtzähler-Differenz
+  // 18 Requests parallel — direkte Tagessensoren statt Gesamtzähler-Differenz
   const requests = days.flatMap(date => [
     fetchSensorRange(CONFIG.sensorYieldDay, isoDay(date,'start'), isoDay(date,'end')),
     fetchSensorRange(CONFIG.sensorGridDay,  isoDay(date,'start'), isoDay(date,'end')),
+    CONFIG.sensorGridRet ? fetchSensorRange(CONFIG.sensorGridRet, isoDay(date,'start'), isoDay(date,'end')) : Promise.resolve([]),
   ]);
   const results = await Promise.allSettled(requests);
 
   for (let i = 0; i < 6; i++) {
-    const r = results[i * 2].status === 'fulfilled' && results[i * 2 + 1].status === 'fulfilled'
-      ? dayFromLastVal(results[i * 2].value, results[i * 2 + 1].value)
+    const r = results[i * 3].status === 'fulfilled' && results[i * 3 + 1].status === 'fulfilled'
+      ? dayFromLastVal(results[i * 3].value, results[i * 3 + 1].value, results[i * 3 + 2]?.value || [])
       : { ertrag: 0, bezug: 0, autarkieW: 0 };
     weekState.ertrag[i]    = r.ertrag;
     weekState.bezug[i]     = r.bezug;
@@ -532,12 +531,13 @@ async function fetchPastDays() {
 // Nur heutigen Tag aktualisieren — bei jedem 30s-Update
 async function fetchTodayBar() {
   const today = new Date();
-  const [yldRes, gridRes] = await Promise.allSettled([
+  const [yldRes, gridRes, retRes] = await Promise.allSettled([
     fetchSensorRange(CONFIG.sensorYieldDay, isoDay(today,'start'), isoDay(today,'end')),
     fetchSensorRange(CONFIG.sensorGridDay,  isoDay(today,'start'), isoDay(today,'end')),
+    CONFIG.sensorGridRet ? fetchSensorRange(CONFIG.sensorGridRet, isoDay(today,'start'), isoDay(today,'end')) : Promise.resolve([]),
   ]);
   const r = yldRes.status === 'fulfilled' && gridRes.status === 'fulfilled'
-    ? dayFromLastVal(yldRes.value, gridRes.value)
+    ? dayFromLastVal(yldRes.value, gridRes.value, retRes?.value || [])
     : { ertrag: 0, bezug: 0, autarkieW: 0 };
   weekState.ertrag[6]    = r.ertrag;
   weekState.bezug[6]     = r.bezug;
