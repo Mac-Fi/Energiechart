@@ -1,4 +1,3 @@
-html = r'''<!DOCTYPE html>
 <html lang="de">
 <head>
 <meta charset="UTF-8">
@@ -307,7 +306,4 @@ setInterval(fetchData,CONFIG.updateInterval);
 </script>
 </body>
 </html>
-'''
-path = Path("/mnt/data/solar_dashboard.html")
-path.write_text(html, encoding="utf-8")
-print(f"Erstellt: {path} ({len(html)} Zeichen)")
+
