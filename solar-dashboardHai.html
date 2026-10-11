@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html lang="de">
 <head>
     <meta charset="UTF-8">
@@ -302,7 +303,7 @@
             <div class="card">
                 <div class="card-label">
                     <span class="dot" style="background:var(--pv)"></span>
-                    Tagesertrag WR
+                    WR-Ertrag seit Tagesbeginn
                 </div>
                 <div class="card-value pv">
                     <span id="v-yield-day">—</span>
@@ -434,7 +435,7 @@
                 <canvas id="barChart">
                 </canvas>
             </div>
-            <div class="sub">Tagesgrenzen werden aus historischen Gesamtzählerständen angenähert. Fallback-Fenster: maximal 2 Stunden um Mitternacht.</div>
+            <div class="sub">Tageswerte werden aus den Gesamtzählerständen berechnet. Fehlt eine Messung genau zum Tagesbeginn, wird ein zeitnaher Messwert verwendet (maximal 2 Stunden Abstand).</div>
         </div>
     </main>
 
@@ -543,19 +544,19 @@
             return {
                 value: before.v,
                 point: before,
-                method: 'Messwert vor Mitternacht'
+                method: 'Ausgangswert zum Tagesbeginn'
             };
         if (after)
             return {
                 value: after.v,
                 point: after,
-                method: 'Fallback: erster Messwert nach Mitternacht'
+                method: 'Näherungswert: erste Messung nach Tagesbeginn'
             };
         const nearest = closestAt(points, boundary);
         return nearest ? {
             value: nearest.v,
             point: nearest,
-            method: 'Fallback: nächster Messwert'
+            method: 'Näherungswert zum Tagesbeginn'
         } : null;
     }
     function dailyDelta(points, start, endValue=null) {
