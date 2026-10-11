@@ -1,309 +1,916 @@
 <html lang="de">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Solar Dashboard</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  :root { color-scheme: dark; --bg:#111112; --card:#1a1a1c; --border:#2c2c2a; --muted:#888780; --text:#e8e8e6; --pv:#EF9F27; --grid:#E24B4A; --cons:#378ADD; --feed:#1D9E75; --teal:#20B2AA; }
-  body { background:var(--bg); color:var(--text); font-family:system-ui,-apple-system,sans-serif; min-height:100vh; padding:clamp(12px,2.5vw,28px); }
-  main { max-width:1400px; margin:auto; }
-  header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:1.5rem; }
-  header h1 { font-size:18px; font-weight:550; }
-  #last-update { font-size:12px; color:var(--muted); text-align:right; }
-  .section-title { font-size:11px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; margin:1.5rem 0 10px; }
-  .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(155px,1fr)); gap:12px; }
-  .card,.chart-card { background:var(--card); border:.5px solid var(--border); border-radius:12px; padding:16px 18px; min-width:0; }
-  .card-label { font-size:12px; color:var(--muted); margin-bottom:8px; display:flex; align-items:center; gap:7px; }
-  .dot { width:8px; height:8px; border-radius:50%; display:inline-block; flex-shrink:0; }
-  .card-value { font-size:clamp(22px,2.5vw,28px); font-weight:550; line-height:1.15; overflow-wrap:anywhere; }
-  .unit { font-size:12px; color:var(--muted); font-weight:400; margin-left:4px; }
-  .sub { font-size:11px; color:var(--muted); margin-top:6px; min-height:14px; }
-  .pv { color:var(--pv); } .grid { color:var(--grid); } .cons { color:var(--cons); } .feed { color:var(--feed); } .teal { color:var(--teal); }
-  .charts { display:grid; grid-template-columns:minmax(0,1.5fr) minmax(260px,1fr); gap:12px; margin:1.5rem 0; }
-  .chart-card h2 { font-size:12px; font-weight:600; color:var(--muted); margin-bottom:14px; text-transform:uppercase; letter-spacing:.06em; }
-  .chart-wrap { position:relative; height:250px; }
-  .toggle-bar { display:flex; gap:6px; margin:-3px 0 12px; }
-  .toggle-btn { font-size:11px; padding:5px 12px; border-radius:7px; border:.5px solid var(--border); background:transparent; color:var(--muted); cursor:pointer; }
-  .toggle-btn.active { background:var(--pv); color:var(--bg); border-color:var(--pv); }
-  .autarkie-wrap { display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:250px; }
-  .ring { position:relative; width:160px; height:160px; }
-  .ring canvas { width:160px!important; height:160px!important; }
-  .ring-center { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; pointer-events:none; }
-  .ring-pct { font-size:28px; color:var(--pv); font-weight:550; }
-  .ring-label { font-size:11px; color:var(--muted); }
-  .note { font-size:11px; color:var(--muted); margin-top:12px; text-align:center; max-width:290px; line-height:1.5; }
-  .status-dot { width:8px;height:8px;border-radius:50%;background:var(--feed);display:inline-block;margin-right:6px; }
-  .error { color:var(--grid); }
-  @media(max-width:720px) { .charts { grid-template-columns:1fr; } .chart-wrap { height:220px; } }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Solar Dashboard Haibach</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+    <style>
+    * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+    }
+
+    :root {
+        color-scheme: dark;
+        --bg: #111112;
+        --card: #1a1a1c;
+        --border: #2c2c2a;
+        --muted: #888780;
+        --text: #e8e8e6;
+        --pv: #EF9F27;
+        --grid: #E24B4A;
+        --cons: #378ADD;
+        --feed: #1D9E75;
+        --teal: #20B2AA;
+    }
+
+    body {
+        background: var(--bg);
+        color: var(--text);
+        font-family: system-ui, -apple-system, sans-serif;
+        min-height: 100vh;
+        padding: clamp(12px, 2.5vw, 28px);
+    }
+
+    main {
+        max-width: 1400px;
+        margin: auto;
+    }
+
+    header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 1.5rem;
+    }
+
+    header h1 {
+        font-size: 18px;
+        font-weight: 550;
+    }
+
+    #last-update {
+        font-size: 12px;
+        color: var(--muted);
+        text-align: right;
+    }
+
+    .section-title {
+        font-size: 11px;
+        font-weight: 600;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: .08em;
+        margin: 1.5rem 0 10px;
+    }
+
+    .cards {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+        gap: 12px;
+    }
+
+    .card, .chart-card {
+        background: var(--card);
+        border: .5px solid var(--border);
+        border-radius: 12px;
+        padding: 16px 18px;
+        min-width: 0;
+    }
+
+    .card-label {
+        font-size: 12px;
+        color: var(--muted);
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+    }
+
+    .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        display: inline-block;
+        flex-shrink: 0;
+    }
+
+    .card-value {
+        font-size: clamp(22px, 2.5vw, 28px);
+        font-weight: 550;
+        line-height: 1.15;
+        overflow-wrap: anywhere;
+    }
+
+    .unit {
+        font-size: 12px;
+        color: var(--muted);
+        font-weight: 400;
+        margin-left: 4px;
+    }
+
+    .sub {
+        font-size: 11px;
+        color: var(--muted);
+        margin-top: 6px;
+        min-height: 14px;
+    }
+
+    .pv {
+        color: var(--pv);
+    }
+
+    .grid {
+        color: var(--grid);
+    }
+
+    .cons {
+        color: var(--cons);
+    }
+
+    .feed {
+        color: var(--feed);
+    }
+
+    .teal {
+        color: var(--teal);
+    }
+
+    .charts {
+        display: grid;
+        grid-template-columns: minmax(0, 1.5fr) minmax(260px, 1fr);
+        gap: 12px;
+        margin: 1.5rem 0;
+    }
+
+    .chart-card h2 {
+        font-size: 12px;
+        font-weight: 600;
+        color: var(--muted);
+        margin-bottom: 14px;
+        text-transform: uppercase;
+        letter-spacing: .06em;
+    }
+
+    .chart-wrap {
+        position: relative;
+        height: 250px;
+    }
+
+    .toggle-bar {
+        display: flex;
+        gap: 6px;
+        margin: -3px 0 12px;
+    }
+
+    .toggle-btn {
+        font-size: 11px;
+        padding: 5px 12px;
+        border-radius: 7px;
+        border: .5px solid var(--border);
+        background: transparent;
+        color: var(--muted);
+        cursor: pointer;
+    }
+
+    .toggle-btn.active {
+        background: var(--pv);
+        color: var(--bg);
+        border-color: var(--pv);
+    }
+
+    .autarkie-wrap {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 250px;
+    }
+
+    .ring {
+        position: relative;
+        width: 160px;
+        height: 160px;
+    }
+
+    .ring canvas {
+        width: 160px !important;
+        height: 160px !important;
+    }
+
+    .ring-center {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+    }
+
+    .ring-pct {
+        font-size: 28px;
+        color: var(--pv);
+        font-weight: 550;
+    }
+
+    .ring-label {
+        font-size: 11px;
+        color: var(--muted);
+    }
+
+    .note {
+        font-size: 11px;
+        color: var(--muted);
+        margin-top: 12px;
+        text-align: center;
+        max-width: 290px;
+        line-height: 1.5;
+    }
+
+    .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--feed);
+        display: inline-block;
+        margin-right: 6px;
+    }
+
+    .error {
+        color: var(--grid);
+    }
+
+    @media (max-width: 720px) {
+        .charts {
+            grid-template-columns: 1fr;
+        }
+
+        .chart-wrap {
+            height: 220px;
+        }
+    }
+    </style>
 </head>
 <body>
-<main>
-<header>
-  <h1>☀ Solar Dashboard Haibach</h1>
-  <span id="last-update">Verbinde …</span>
-</header>
+    <main>
+        <header>
+            <h1>☀ Solar Dashboard Haibach</h1>
+            <span id="last-update">Verbinde …</span>
+        </header>
 
-<div class="section-title">Echtzeit</div>
-<div class="cards">
-  <div class="card"><div class="card-label"><span class="dot" style="background:var(--pv)"></span>PV-Leistung</div><div class="card-value pv"><span id="v-pv">—</span><span class="unit">W</span></div></div>
-  <div class="card"><div class="card-label"><span class="dot" id="grid-dot" style="background:var(--grid)"></span>Netzleistung</div><div class="card-value grid" id="grid-wrap"><span id="v-grid">—</span><span class="unit">W</span></div><div class="sub" id="grid-hint"></div></div>
-  <div class="card"><div class="card-label"><span class="dot" style="background:var(--cons)"></span>Gesamtverbrauch</div><div class="card-value cons"><span id="v-cons">—</span><span class="unit">W</span></div><div class="sub">aus PV- und Netzleistung abgeleitet</div></div>
-</div>
+        <div class="section-title">Echtzeit</div>
+        <div class="cards">
+            <div class="card">
+                <div class="card-label">
+                    <span class="dot" style="background:var(--pv)"></span>
+                    PV-Leistung
+                </div>
+                <div class="card-value pv">
+                    <span id="v-pv">—</span>
+                    <span class="unit">W</span>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-label">
+                    <span class="dot" id="grid-dot" style="background:var(--grid)"></span>
+                    Netzleistung
+                </div>
+                <div class="card-value grid" id="grid-wrap">
+                    <span id="v-grid">—</span>
+                    <span class="unit">W</span>
+                </div>
+                <div class="sub" id="grid-hint"></div>
+            </div>
+            <div class="card">
+                <div class="card-label">
+                    <span class="dot" style="background:var(--cons)"></span>
+                    Gesamtverbrauch
+                </div>
+                <div class="card-value cons">
+                    <span id="v-cons">—</span>
+                    <span class="unit">W</span>
+                </div>
+                <div class="sub">aus PV- und Netzleistung abgeleitet</div>
+            </div>
+        </div>
 
-<div class="section-title">Heute</div>
-<div class="cards">
-  <div class="card"><div class="card-label"><span class="dot" style="background:var(--pv)"></span>Tagesertrag WR</div><div class="card-value pv"><span id="v-yield-day">—</span><span class="unit">kWh</span></div><div class="sub" id="yield-note"></div></div>
-  <div class="card"><div class="card-label"><span class="dot" style="background:var(--grid)"></span>Netzbezug heute</div><div class="card-value grid"><span id="v-import-day">—</span><span class="unit">kWh</span></div><div class="sub" id="import-note"></div></div>
-  <div class="card"><div class="card-label"><span class="dot" style="background:var(--feed)"></span>Netzeinspeisung heute</div><div class="card-value feed"><span id="v-export-day">—</span><span class="unit">kWh</span></div><div class="sub" id="export-note"></div></div>
-  <div class="card"><div class="card-label"><span class="dot" style="background:var(--cons)"></span>Tagesverbrauch</div><div class="card-value cons"><span id="v-cons-day">—</span><span class="unit">kWh</span></div></div>
-  <div class="card"><div class="card-label"><span class="dot" style="background:var(--teal)"></span>Einsparung heute</div><div class="card-value teal"><span id="v-saved-day">—</span><span class="unit">€</span></div><div class="sub">geschätzt aus selbst genutztem Solarstrom</div></div>
-</div>
+        <div class="section-title">Heute</div>
+        <div class="cards">
+            <div class="card">
+                <div class="card-label">
+                    <span class="dot" style="background:var(--pv)"></span>
+                    Tagesertrag WR
+                </div>
+                <div class="card-value pv">
+                    <span id="v-yield-day">—</span>
+                    <span class="unit">kWh</span>
+                </div>
+                <div class="sub" id="yield-note"></div>
+            </div>
+            <div class="card">
+                <div class="card-label">
+                    <span class="dot" style="background:var(--grid)"></span>
+                    Netzbezug heute
+                </div>
+                <div class="card-value grid">
+                    <span id="v-import-day">—</span>
+                    <span class="unit">kWh</span>
+                </div>
+                <div class="sub" id="import-note"></div>
+            </div>
+            <div class="card">
+                <div class="card-label">
+                    <span class="dot" style="background:var(--feed)"></span>
+                    Netzeinspeisung heute
+                </div>
+                <div class="card-value feed">
+                    <span id="v-export-day">—</span>
+                    <span class="unit">kWh</span>
+                </div>
+                <div class="sub" id="export-note"></div>
+            </div>
+            <div class="card">
+                <div class="card-label">
+                    <span class="dot" style="background:var(--cons)"></span>
+                    Tagesverbrauch
+                </div>
+                <div class="card-value cons">
+                    <span id="v-cons-day">—</span>
+                    <span class="unit">kWh</span>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-label">
+                    <span class="dot" style="background:var(--teal)"></span>
+                    Ersparnis durch Eigenverbrauch
+                </div>
+                <div class="card-value teal">
+                    <span id="v-saved-day">—</span>
+                    <span class="unit">€</span>
+                </div>
+                <div class="sub">(WR-Tagesertrag − Einspeisung heute) × 0,29 €/kWh</div>
+            </div>
+        </div>
 
-<div class="section-title">Gesamt</div>
-<div class="cards">
-  <div class="card"><div class="card-label"><span class="dot" style="background:var(--pv)"></span>Gesamtertrag WR</div><div class="card-value pv"><span id="v-yield-total">—</span><span class="unit">kWh</span></div></div>
-  <div class="card"><div class="card-label"><span class="dot" style="background:var(--grid)"></span>Netzbezug gesamt</div><div class="card-value grid"><span id="v-import-total">—</span><span class="unit">kWh</span></div></div>
-  <div class="card"><div class="card-label"><span class="dot" style="background:var(--feed)"></span>Netzeinspeisung gesamt</div><div class="card-value feed"><span id="v-export-total">—</span><span class="unit">kWh</span></div></div>
-  <div class="card"><div class="card-label"><span class="dot" style="background:var(--teal)"></span>Gesamteinsparung*</div><div class="card-value teal"><span id="v-saved-total">—</span><span class="unit">€</span></div><div class="sub">*Ertrag minus Einspeisung × Strompreis</div></div>
-</div>
+        <div class="section-title">Gesamt</div>
+        <div class="cards">
+            <div class="card">
+                <div class="card-label">
+                    <span class="dot" style="background:var(--pv)"></span>
+                    Gesamtertrag WR
+                </div>
+                <div class="card-value pv">
+                    <span id="v-yield-total">—</span>
+                    <span class="unit">kWh</span>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-label">
+                    <span class="dot" style="background:var(--grid)"></span>
+                    Netzbezug gesamt
+                </div>
+                <div class="card-value grid">
+                    <span id="v-import-total">—</span>
+                    <span class="unit">kWh</span>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-label">
+                    <span class="dot" style="background:var(--feed)"></span>
+                    Netzeinspeisung gesamt
+                </div>
+                <div class="card-value feed">
+                    <span id="v-export-total">—</span>
+                    <span class="unit">kWh</span>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-label">
+                    <span class="dot" style="background:var(--teal)"></span>
+                    Ersparnis durch Eigenverbrauch gesamt
+                </div>
+                <div class="card-value teal">
+                    <span id="v-saved-total">—</span>
+                    <span class="unit">€</span>
+                </div>
+                <div class="sub">(WR-Gesamtertrag − Gesamteinspeisung) × 0,29 €/kWh</div>
+            </div>
+        </div>
 
-<div class="charts">
-  <div class="chart-card">
-    <h2>Leistungsverlauf heute</h2>
-    <div class="toggle-bar">
-      <button class="toggle-btn active" id="btn-momentan" onclick="setVerlaufMode('momentan')">Letzte Messwerte</button>
-      <button class="toggle-btn" id="btn-tag" onclick="setVerlaufMode('tag')">Ganzer Tag</button>
-    </div>
-    <div class="chart-wrap"><canvas id="lineChart"></canvas></div>
-  </div>
-  <div class="chart-card">
-    <h2>Autarkiegrad heute</h2>
-    <div class="autarkie-wrap">
-      <div class="ring"><canvas id="donutChart"></canvas><div class="ring-center"><div class="ring-pct" id="autarkie-pct">—</div><div class="ring-label">autark</div></div></div>
-      <div class="note" id="autarkie-note">Berechnet aus PV-Eigenverbrauch und Gesamtverbrauch.</div>
-    </div>
-  </div>
-</div>
+        <div class="charts">
+            <div class="chart-card">
+                <h2>Leistungsverlauf heute</h2>
+                <div class="toggle-bar">
+                    <button class="toggle-btn active" id="btn-momentan" onclick="setVerlaufMode('momentan')">Letzte Messwerte</button>
+                    <button class="toggle-btn" id="btn-tag" onclick="setVerlaufMode('tag')">Ganzer Tag</button>
+                </div>
+                <div class="chart-wrap">
+                    <canvas id="lineChart">
+                    </canvas>
+                </div>
+            </div>
+            <div class="chart-card">
+                <h2>Autarkiegrad heute</h2>
+                <div class="autarkie-wrap">
+                    <div class="ring">
+                        <canvas id="donutChart">
+                        </canvas>
+                        <div class="ring-center">
+                            <div class="ring-pct" id="autarkie-pct">—</div>
+                            <div class="ring-label">autark</div>
+                        </div>
+                    </div>
+                    <div class="note" id="autarkie-note">Berechnet aus PV-Eigenverbrauch und Gesamtverbrauch.</div>
+                </div>
+            </div>
+        </div>
 
-<div class="chart-card" style="margin-bottom:1.5rem">
-  <h2>Letzte 7 Tage – Ertrag, Netzbezug &amp; Einspeisung (kWh)</h2>
-  <div class="chart-wrap" style="height:270px"><canvas id="barChart"></canvas></div>
-  <div class="sub">Tagesgrenzen werden aus historischen Gesamtzählerständen angenähert. Fallback-Fenster: maximal 2 Stunden um Mitternacht.</div>
-</div>
-</main>
+        <div class="chart-card" style="margin-bottom:1.5rem">
+            <h2>Letzte 7 Tage – Ertrag, Netzbezug &amp; Einspeisung (kWh)</h2>
+            <div class="chart-wrap" style="height:270px">
+                <canvas id="barChart">
+                </canvas>
+            </div>
+            <div class="sub">Tagesgrenzen werden aus historischen Gesamtzählerständen angenähert. Fallback-Fenster: maximal 2 Stunden um Mitternacht.</div>
+        </div>
+    </main>
 
-<script>
-const CONFIG = {
-  boxId: '6a104f5a03d3940007c85650',
-  sensorGridPower: '6a104f5a03d3940007c85652',
-  sensorGridTotal: '6a104f5a03d3940007c85654',
-  sensorGridRet: '6ac73ec761c3fa00081181a4',
-  sensorPVPower: '6a104f5a03d3940007c85651',
-  sensorYieldTotal: '6a104f5a03d3940007c85653',
-  strompreis: 0.29,
-  updateInterval: 30000,
-  verlaufPunkte: 60,
-  midnightFallbackHours: 2
-};
-const OSM_BASE = 'https://api.opensensemap.org';
-let lineChart, donutChart, barChart;
-let verlaufMode = 'momentan';
-let sensorCache = {};
+    <script>
+    const CONFIG = {
+        boxId: '6a104f5a03d3940007c85650',
+        sensorGridPower: '6a104f5a03d3940007c85652',
+        sensorGridTotal: '6a104f5a03d3940007c85654',
+        sensorGridRet: '6ac73ec761c3fa00081181a4',
+        sensorPVPower: '6a104f5a03d3940007c85651',
+        sensorYieldTotal: '6a104f5a03d3940007c85653',
+        strompreis: 0.29,
+        updateInterval: 30000,
+        verlaufPunkte: 60,
+        midnightFallbackHours: 2
+    };
+    const OSM_BASE = 'https://api.opensensemap.org';
+    let lineChart,
+        donutChart,
+        barChart;
+    let verlaufMode = 'momentan';
+    let sensorCache = {};
 
-function fmt(n, digits=2) {
-  return Number.isFinite(n) ? n.toLocaleString('de-DE',{minimumFractionDigits:digits,maximumFractionDigits:digits}) : '—';
-}
-function fmtTime(iso) {
-  return new Date(iso).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit'});
-}
-function dayStart(date) { return new Date(date.getFullYear(),date.getMonth(),date.getDate()); }
-function addDays(date,n) { const d=new Date(date); d.setDate(d.getDate()+n); return d; }
-function dayLabel(date) { return date.toLocaleDateString('de-DE',{day:'2-digit',month:'2-digit'}); }
-function setText(id,value) { document.getElementById(id).textContent=value; }
-async function fetchAllSensors() {
-  const res=await fetch(`${OSM_BASE}/boxes/${CONFIG.boxId}?full=true`);
-  if(!res.ok) throw new Error(`openSenseMap ${res.status}`);
-  const box=await res.json();
-  sensorCache={};
-  for(const s of (box.sensors||[])) sensorCache[s._id]=s.lastMeasurement?.value == null ? null : Number(s.lastMeasurement.value);
-}
-function sensorVal(id) {
-  const v=sensorCache[id];
-  return v == null || !Number.isFinite(Number(v)) ? null : Number(v);
-}
-async function fetchSensorRange(sensorId,from,to) {
-  const url=`${OSM_BASE}/boxes/${CONFIG.boxId}/data/${sensorId}?from-date=${encodeURIComponent(from.toISOString())}&to-date=${encodeURIComponent(to.toISOString())}&format=json`;
-  const res=await fetch(url);
-  if(!res.ok) throw new Error(`Historische Abfrage fehlgeschlagen (${res.status})`);
-  const data=await res.json();
-  return (Array.isArray(data)?data:[]).map(x=>({t:new Date(x.createdAt),v:Number(x.value)}))
-    .filter(x=>Number.isFinite(x.v)&&!Number.isNaN(x.t.getTime())).sort((a,b)=>a.t-b.t);
-}
-function closestAt(points,target,maxHours=CONFIG.midnightFallbackHours) {
-  if(!points.length) return null;
-  let best=null,delta=Infinity;
-  for(const p of points) {
-    const d=Math.abs(p.t-target);
-    if(d<delta){best=p;delta=d;}
-  }
-  return delta<=maxHours*3600000 ? best : null;
-}
-// For a boundary, prefer the latest reading before it; otherwise use the earliest reading after it.
-// Both are accepted only within the configured fallback window.
-function boundaryValue(points,boundary) {
-  const maxMs=CONFIG.midnightFallbackHours*3600000;
-  let before=null,after=null;
-  for(const p of points) {
-    const diff=p.t-boundary;
-    if(diff<=0 && -diff<=maxMs) before=p;
-    if(diff>=0 && diff<=maxMs && !after) after=p;
-  }
-  if(before) return {value:before.v, point:before, method:'Messwert vor Mitternacht'};
-  if(after) return {value:after.v, point:after, method:'Fallback: erster Messwert nach Mitternacht'};
-  const nearest=closestAt(points,boundary);
-  return nearest ? {value:nearest.v,point:nearest,method:'Fallback: nächster Messwert'} : null;
-}
-function dailyDelta(points,start,endValue=null) {
-  const startPoint=boundaryValue(points,start);
-  if(!startPoint) return {value:null,note:'Kein Messwert nahe Tagesbeginn'};
-  let endPoint=endValue;
-  if(!endPoint) endPoint=boundaryValue(points,addDays(start,1));
-  if(!endPoint) return {value:null,note:'Kein Messwert nahe Tagesende'};
-  const delta=endPoint.value-startPoint.value;
-  if(delta < -0.001) return {value:null,note:'Zählerstand scheint zurückgesetzt'};
-  return {value:Math.max(0,delta),note:startPoint.method};
-}
-function setDailyCard(id,noteId,result) {
-  setText(id,result.value==null?'—':fmt(result.value));
-  setText(noteId,result.note||'');
-}
-async function fetchTodayAndWeek() {
-  const now=new Date(), today=dayStart(now), from=addDays(today,-7), end=addDays(today,1);
-  // Include a two-hour margin on both ends so a reading close to midnight can be used.
-  const queryFrom=new Date(from.getTime()-CONFIG.midnightFallbackHours*3600000);
-  const queryTo=new Date(end.getTime()+CONFIG.midnightFallbackHours*3600000);
-  const [yieldPts,importPts,exportPts]=await Promise.all([
-    fetchSensorRange(CONFIG.sensorYieldTotal,queryFrom,queryTo),
-    fetchSensorRange(CONFIG.sensorGridTotal,queryFrom,queryTo),
-    fetchSensorRange(CONFIG.sensorGridRet,queryFrom,queryTo)
-  ]);
-  const liveYield=sensorVal(CONFIG.sensorYieldTotal), liveImport=sensorVal(CONFIG.sensorGridTotal), liveExport=sensorVal(CONFIG.sensorGridRet);
-  const todayYield=dailyDelta(yieldPts,today,liveYield==null?null:{value:liveYield,point:{t:now,v:liveYield},method:'Aktueller Zählerstand'});
-  const todayImport=dailyDelta(importPts,today,liveImport==null?null:{value:liveImport,point:{t:now,v:liveImport},method:'Aktueller Zählerstand'});
-  const todayExport=dailyDelta(exportPts,today,liveExport==null?null:{value:liveExport,point:{t:now,v:liveExport},method:'Aktueller Zählerstand'});
-  setDailyCard('v-yield-day','yield-note',todayYield);
-  setDailyCard('v-import-day','import-note',todayImport);
-  setDailyCard('v-export-day','export-note',todayExport);
-  let consumption=null,saved=null,autarky=0;
-  if(todayYield.value!=null&&todayImport.value!=null&&todayExport.value!=null) {
-    consumption=Math.max(0,todayYield.value+todayImport.value-todayExport.value);
-    saved=Math.max(0,todayYield.value-todayExport.value)*CONFIG.strompreis;
-    const selfUse=Math.max(0,todayYield.value-todayExport.value);
-    autarky=consumption>0?Math.min(100,selfUse/consumption*100):0;
-  }
-  setText('v-cons-day',consumption==null?'—':fmt(consumption));
-  setText('v-saved-day',saved==null?'—':fmt(saved));
-  setText('autarkie-pct',consumption==null?'—':Math.round(autarky)+'%');
-  setText('autarkie-note',consumption==null?'Für den Autarkiegrad fehlen Tageswerte.':'Berechnet aus selbst genutztem Solarstrom und Gesamtverbrauch.');
-  updateDonut(autarky);
-  const labels=[],yields=[],imports=[],exports=[];
-  for(let i=0;i<7;i++) {
-    const d=addDays(from,i), next=addDays(d,1);
-    labels.push(dayLabel(d));
-    const isToday=d.getTime()===today.getTime();
-    const y=isToday?todayYield:dailyDelta(yieldPts,d);
-    const im=isToday?todayImport:dailyDelta(importPts,d);
-    const ex=isToday?todayExport:dailyDelta(exportPts,d);
-    yields.push(y.value==null?null:y.value);
-    imports.push(im.value==null?null:im.value);
-    exports.push(ex.value==null?null:ex.value);
-  }
-  updateBarChart(labels,yields,imports,exports);
-}
-async function fetchVerlauf() {
-  try {
-    const now=new Date(), start=dayStart(now);
-    const from=verlaufMode==='momentan'?new Date(now.getTime()-6*3600000):start;
-    const to=now;
-    const [pv,grid]=await Promise.all([
-      fetchSensorRange(CONFIG.sensorPVPower,from,to),
-      fetchSensorRange(CONFIG.sensorGridPower,from,to)
-    ]);
-    const gridByTime=grid;
-    const labels=pv.map(p=>fmtTime(p.t));
-    const pvVals=pv.map(p=>p.v);
-    const gridVals=pv.map(p=>{
-      if(!gridByTime.length)return null;
-      let best=gridByTime[0],dist=Math.abs(best.t-p.t);
-      for(const g of gridByTime){const d=Math.abs(g.t-p.t);if(d<dist){best=g;dist=d;}}
-      return dist<=15*60*1000?best.v:null;
-    });
-    const consVals=pvVals.map((v,i)=>gridVals[i]==null?null:Math.max(0,v+gridVals[i]));
-    updateLineChart(labels,pvVals,gridVals,consVals);
-  } catch(e) { console.warn('Verlauf:',e); }
-}
-function setVerlaufMode(mode) {
-  verlaufMode=mode;
-  document.getElementById('btn-momentan').classList.toggle('active',mode==='momentan');
-  document.getElementById('btn-tag').classList.toggle('active',mode==='tag');
-  fetchVerlauf();
-}
-const commonScales = {
-  x:{ticks:{color:'#888780',font:{size:10},maxTicksLimit:8},grid:{color:'#2c2c2a'}},
-  y:{ticks:{color:'#888780',font:{size:10}},grid:{color:'#2c2c2a'}}
-};
-function updateLineChart(labels,pv,grid,cons) {
-  const ctx=document.getElementById('lineChart').getContext('2d');
-  if(lineChart)lineChart.destroy();
-  lineChart=new Chart(ctx,{type:'line',data:{labels,datasets:[
-    {label:'PV (W)',data:pv,borderColor:'#EF9F27',backgroundColor:'rgba(239,159,39,.08)',borderWidth:2,pointRadius:0,tension:.25,spanGaps:false},
-    {label:'Netz (W)',data:grid,borderColor:'#E24B4A',borderWidth:1.5,pointRadius:0,tension:.25,spanGaps:false},
-    {label:'Verbrauch (W)',data:cons,borderColor:'#378ADD',borderWidth:1.5,pointRadius:0,tension:.25,spanGaps:false}
-  ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#888780',font:{size:10},boxWidth:12}}},scales:commonScales}});
-}
-function updateDonut(value) {
-  const ctx=document.getElementById('donutChart').getContext('2d');
-  if(donutChart)donutChart.destroy();
-  donutChart=new Chart(ctx,{type:'doughnut',data:{datasets:[{data:[value,Math.max(0,100-value)],backgroundColor:['#EF9F27','#2c2c2a'],borderWidth:0}]},options:{responsive:false,cutout:'74%',plugins:{legend:{display:false},tooltip:{enabled:false}}}});
-}
-function updateBarChart(labels,yields,imports,exports) {
-  const ctx=document.getElementById('barChart').getContext('2d');
-  if(barChart)barChart.destroy();
-  barChart=new Chart(ctx,{type:'bar',data:{labels,datasets:[
-    {label:'PV-Ertrag (kWh)',data:yields,backgroundColor:'rgba(239,159,39,.8)',borderRadius:4},
-    {label:'Netzbezug (kWh)',data:imports,backgroundColor:'rgba(226,75,74,.75)',borderRadius:4},
-    {label:'Einspeisung (kWh)',data:exports,backgroundColor:'rgba(29,158,117,.75)',borderRadius:4}
-  ]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{legend:{labels:{color:'#888780',font:{size:10},boxWidth:12}}},scales:commonScales}});
-}
-async function fetchData() {
-  try {
-    await fetchAllSensors();
-    const pv=sensorVal(CONFIG.sensorPVPower), grid=sensorVal(CONFIG.sensorGridPower);
-    const yTotal=sensorVal(CONFIG.sensorYieldTotal), iTotal=sensorVal(CONFIG.sensorGridTotal), eTotal=sensorVal(CONFIG.sensorGridRet);
-    setText('v-pv',pv==null?'—':Math.round(pv).toLocaleString('de-DE'));
-    setText('v-grid',grid==null?'—':Math.round(Math.abs(grid)).toLocaleString('de-DE'));
-    setText('v-cons',pv==null||grid==null?'—':Math.round(Math.max(0,pv+grid)).toLocaleString('de-DE'));
-    const wrap=document.getElementById('grid-wrap'), dot=document.getElementById('grid-dot');
-    if(grid!=null && grid<0) {wrap.className='card-value feed';dot.style.background='var(--feed)';setText('grid-hint','↓ Einspeisung');}
-    else {wrap.className='card-value grid';dot.style.background='var(--grid)';setText('grid-hint','↑ Netzbezug');}
-    setText('v-yield-total',yTotal==null?'—':fmt(yTotal,2));
-    setText('v-import-total',iTotal==null?'—':fmt(iTotal,2));
-    setText('v-export-total',eTotal==null?'—':fmt(eTotal,2));
-    setText('v-saved-total',yTotal==null||eTotal==null?'—':fmt(Math.max(0,yTotal-eTotal)*CONFIG.strompreis,2));
-    await fetchTodayAndWeek();
-    await fetchVerlauf();
-    setText('last-update','● Aktualisiert '+new Date().toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit',second:'2-digit'}));
-  } catch(e) {
-    document.getElementById('last-update').innerHTML='<span class="error">Fehler: '+String(e.message).replace(/[<>&"]/g,'')+'</span>';
-    console.error(e);
-  }
-}
-fetchData();
-setInterval(fetchData,CONFIG.updateInterval);
-</script>
+    function fmt(n, digits=2) {
+        return Number.isFinite(n) ? n.toLocaleString('de-DE', {
+            minimumFractionDigits: digits,
+            maximumFractionDigits: digits
+        }) : '—';
+    }
+    function fmtTime(iso) {
+        return new Date(iso).toLocaleTimeString('de-DE', {
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+    function dayStart(date) {
+        return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    }
+    function addDays(date, n) {
+        const d = new Date(date);
+        d.setDate(d.getDate() + n);
+        return d;
+    }
+    function dayLabel(date) {
+        return date.toLocaleDateString('de-DE', {
+            day: '2-digit',
+            month: '2-digit'
+        });
+    }
+    function setText(id, value) {
+        document.getElementById(id).textContent = value;
+    }
+    async function fetchAllSensors() {
+        const res = await fetch(`${OSM_BASE}/boxes/${CONFIG.boxId}?full=true`);
+        if (!res.ok)
+            throw new Error(`openSenseMap ${res.status}`);
+        const box = await res.json();
+        sensorCache = {};
+        for (const s of (box.sensors || []))
+            sensorCache[s._id] = s.lastMeasurement?.value == null ? null : Number(s.lastMeasurement.value);
+    }
+    function sensorVal(id) {
+        const v = sensorCache[id];
+        return v == null || !Number.isFinite(Number(v)) ? null : Number(v);
+    }
+    async function fetchSensorRange(sensorId, from, to) {
+        const url = `${OSM_BASE}/boxes/${CONFIG.boxId}/data/${sensorId}?from-date=${encodeURIComponent(from.toISOString())}&to-date=${encodeURIComponent(to.toISOString())}&format=json`;
+        const res = await fetch(url);
+        if (!res.ok)
+            throw new Error(`Historische Abfrage fehlgeschlagen (${res.status})`);
+        const data = await res.json();
+        return (Array.isArray(data) ? data : []).map(x => ({
+            t: new Date(x.createdAt),
+            v: Number(x.value)
+        }))
+        .filter(x => Number.isFinite(x.v) && !Number.isNaN(x.t.getTime())).sort((a, b) => a.t - b.t);
+    }
+    function closestAt(points, target, maxHours=CONFIG.midnightFallbackHours) {
+        if (!points.length)
+            return null;
+        let best = null,
+            delta = Infinity;
+        for (const p of points) {
+            const d = Math.abs(p.t - target);
+            if (d < delta) {
+                best = p;
+                delta = d;
+            }
+        }
+        return delta <= maxHours * 3600000 ? best : null;
+    }
+    // For a boundary, prefer the latest reading before it; otherwise use the earliest reading after it.
+    // Both are accepted only within the configured fallback window.
+    function boundaryValue(points, boundary) {
+        const maxMs = CONFIG.midnightFallbackHours * 3600000;
+        let before = null,
+            after = null;
+        for (const p of points) {
+            const diff = p.t - boundary;
+            if (diff <= 0 && -diff <= maxMs)
+                before = p;
+            if (diff >= 0 && diff <= maxMs && !after)
+                after = p;
+        }
+        if (before)
+            return {
+                value: before.v,
+                point: before,
+                method: 'Messwert vor Mitternacht'
+            };
+        if (after)
+            return {
+                value: after.v,
+                point: after,
+                method: 'Fallback: erster Messwert nach Mitternacht'
+            };
+        const nearest = closestAt(points, boundary);
+        return nearest ? {
+            value: nearest.v,
+            point: nearest,
+            method: 'Fallback: nächster Messwert'
+        } : null;
+    }
+    function dailyDelta(points, start, endValue=null) {
+        const startPoint = boundaryValue(points, start);
+        if (!startPoint)
+            return {
+                value: null,
+                note: 'Kein Messwert nahe Tagesbeginn'
+            };
+        let endPoint = endValue;
+        if (!endPoint)
+            endPoint = boundaryValue(points, addDays(start, 1));
+        if (!endPoint)
+            return {
+                value: null,
+                note: 'Kein Messwert nahe Tagesende'
+            };
+        const delta = endPoint.value - startPoint.value;
+        if (delta < -0.001)
+            return {
+                value: null,
+                note: 'Zählerstand scheint zurückgesetzt'
+            };
+        return {
+            value: Math.max(0, delta),
+            note: startPoint.method
+        };
+    }
+    function setDailyCard(id, noteId, result) {
+        setText(id, result.value == null ? '—' : fmt(result.value));
+        setText(noteId, result.note || '');
+    }
+    async function fetchTodayAndWeek() {
+        const now = new Date(),
+            today = dayStart(now),
+            from = addDays(today, -6),
+            end = addDays(today, 1);
+        // Include a two-hour margin on both ends so a reading close to midnight can be used.
+        const queryFrom = new Date(from.getTime() - CONFIG.midnightFallbackHours * 3600000);
+        const queryTo = new Date(end.getTime() + CONFIG.midnightFallbackHours * 3600000);
+        const [yieldPts, importPts, exportPts] = await Promise.all([
+        fetchSensorRange(CONFIG.sensorYieldTotal, queryFrom, queryTo),
+        fetchSensorRange(CONFIG.sensorGridTotal, queryFrom, queryTo),
+        fetchSensorRange(CONFIG.sensorGridRet, queryFrom, queryTo)
+        ]);
+        const liveYield = sensorVal(CONFIG.sensorYieldTotal),
+            liveImport = sensorVal(CONFIG.sensorGridTotal),
+            liveExport = sensorVal(CONFIG.sensorGridRet);
+        const todayYield = dailyDelta(yieldPts, today, liveYield == null ? null : {
+            value: liveYield,
+            point: {
+                t: now,
+                v: liveYield
+            },
+            method: 'Aktueller Zählerstand'
+        });
+        const todayImport = dailyDelta(importPts, today, liveImport == null ? null : {
+            value: liveImport,
+            point: {
+                t: now,
+                v: liveImport
+            },
+            method: 'Aktueller Zählerstand'
+        });
+        const todayExport = dailyDelta(exportPts, today, liveExport == null ? null : {
+            value: liveExport,
+            point: {
+                t: now,
+                v: liveExport
+            },
+            method: 'Aktueller Zählerstand'
+        });
+        setDailyCard('v-yield-day', 'yield-note', todayYield);
+        setDailyCard('v-import-day', 'import-note', todayImport);
+        setDailyCard('v-export-day', 'export-note', todayExport);
+        let consumption = null,
+            saved = null,
+            autarky = 0;
+        if (todayYield.value != null && todayImport.value != null && todayExport.value != null) {
+            consumption = Math.max(0, todayYield.value + todayImport.value - todayExport.value);
+            // Bei Quasi-Nulleinspeisung zählt nur selbst genutzter PV-Strom:
+            // Eigenverbrauch PV = WR-Ertrag - Netzeinspeisung.
+            const selfUse = Math.max(0, todayYield.value - todayExport.value);
+            saved = selfUse * CONFIG.strompreis;
+            autarky = consumption > 0 ? Math.min(100, selfUse / consumption * 100) : 0;
+        }
+        setText('v-cons-day', consumption == null ? '—' : fmt(consumption));
+        setText('v-saved-day', saved == null ? '—' : fmt(saved));
+        setText('autarkie-pct', consumption == null ? '—' : Math.round(autarky) + '%');
+        setText('autarkie-note', consumption == null ? 'Für den Autarkiegrad fehlen Tageswerte.' : 'Berechnet aus selbst genutztem Solarstrom und Gesamtverbrauch.');
+        updateDonut(autarky);
+        const labels = [],
+            yields = [],
+            imports = [],
+            exports = [];
+        for (let i = 0; i < 7; i++) {
+            const d = addDays(from, i),
+                next = addDays(d, 1);
+            labels.push(dayLabel(d));
+            const isToday = d.getTime() === today.getTime();
+            const y = isToday ? todayYield : dailyDelta(yieldPts, d);
+            const im = isToday ? todayImport : dailyDelta(importPts, d);
+            const ex = isToday ? todayExport : dailyDelta(exportPts, d);
+            yields.push(y.value == null ? null : y.value);
+            imports.push(im.value == null ? null : im.value);
+            exports.push(ex.value == null ? null : ex.value);
+        }
+        updateBarChart(labels, yields, imports, exports);
+    }
+    async function fetchVerlauf() {
+        try {
+            const now = new Date(),
+                start = dayStart(now);
+            const from = verlaufMode === 'momentan' ? new Date(now.getTime() - 6 * 3600000) : start;
+            const to = now;
+            const [pv, grid] = await Promise.all([
+            fetchSensorRange(CONFIG.sensorPVPower, from, to),
+            fetchSensorRange(CONFIG.sensorGridPower, from, to)
+            ]);
+            const gridByTime = grid;
+            const labels = pv.map(p => fmtTime(p.t));
+            const pvVals = pv.map(p => p.v);
+            const gridVals = pv.map(p => {
+                if (!gridByTime.length)
+                    return null;
+                let best = gridByTime[0],
+                    dist = Math.abs(best.t - p.t);
+                for (const g of gridByTime) {
+                    const d = Math.abs(g.t - p.t);
+                    if (d < dist) {
+                        best = g;
+                        dist = d;
+                    }
+                }
+                return dist <= 15 * 60 * 1000 ? best.v : null;
+            });
+            const consVals = pvVals.map((v, i) => gridVals[i] == null ? null : Math.max(0, v + gridVals[i]));
+            updateLineChart(labels, pvVals, gridVals, consVals);
+        } catch (e) {
+            console.warn('Verlauf:', e);
+        }
+    }
+    function setVerlaufMode(mode) {
+        verlaufMode = mode;
+        document.getElementById('btn-momentan').classList.toggle('active', mode === 'momentan');
+        document.getElementById('btn-tag').classList.toggle('active', mode === 'tag');
+        fetchVerlauf();
+    }
+    const commonScales = {
+        x: {
+            ticks: {
+                color: '#888780',
+                font: {
+                    size: 10
+                },
+                maxTicksLimit: 8
+            },
+            grid: {
+                color: '#2c2c2a'
+            }
+        },
+        y: {
+            ticks: {
+                color: '#888780',
+                font: {
+                    size: 10
+                }
+            },
+            grid: {
+                color: '#2c2c2a'
+            }
+        }
+    };
+    function updateLineChart(labels, pv, grid, cons) {
+        const ctx = document.getElementById('lineChart').getContext('2d');
+        if (lineChart)
+            lineChart.destroy();
+        lineChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [
+                {
+                    label: 'PV (W)',
+                    data: pv,
+                    borderColor: '#EF9F27',
+                    backgroundColor: 'rgba(239,159,39,.08)',
+                    borderWidth: 2,
+                    pointRadius: 0,
+                    tension: .25,
+                    spanGaps: false
+                },
+                {
+                    label: 'Netz (W)',
+                    data: grid,
+                    borderColor: '#E24B4A',
+                    borderWidth: 1.5,
+                    pointRadius: 0,
+                    tension: .25,
+                    spanGaps: false
+                },
+                {
+                    label: 'Verbrauch (W)',
+                    data: cons,
+                    borderColor: '#378ADD',
+                    borderWidth: 1.5,
+                    pointRadius: 0,
+                    tension: .25,
+                    spanGaps: false
+                }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false
+                },
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: '#888780',
+                            font: {
+                                size: 10
+                            },
+                            boxWidth: 12
+                        }
+                    }
+                },
+                scales: commonScales
+            }
+        });
+    }
+    function updateDonut(value) {
+        const ctx = document.getElementById('donutChart').getContext('2d');
+        if (donutChart)
+            donutChart.destroy();
+        donutChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                datasets: [{
+                    data: [value, Math.max(0, 100 - value)],
+                    backgroundColor: ['#EF9F27', '#2c2c2a'],
+                    borderWidth: 0
+                }]
+            },
+            options: {
+                responsive: false,
+                cutout: '74%',
+                plugins: {
+                    legend: {
+                        display: false
+                    },
+                    tooltip: {
+                        enabled: false
+                    }
+                }
+            }
+        });
+    }
+    function updateBarChart(labels, yields, imports, exports) {
+        const ctx = document.getElementById('barChart').getContext('2d');
+        if (barChart)
+            barChart.destroy();
+        barChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels,
+                datasets: [
+                {
+                    label: 'PV-Ertrag (kWh)',
+                    data: yields,
+                    backgroundColor: 'rgba(239,159,39,.8)',
+                    borderRadius: 4
+                },
+                {
+                    label: 'Netzbezug (kWh)',
+                    data: imports,
+                    backgroundColor: 'rgba(226,75,74,.75)',
+                    borderRadius: 4
+                },
+                {
+                    label: 'Einspeisung (kWh)',
+                    data: exports,
+                    backgroundColor: 'rgba(29,158,117,.75)',
+                    borderRadius: 4
+                }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                interaction: {
+                    mode: 'index',
+                    intersect: false
+                },
+                plugins: {
+                    legend: {
+                        labels: {
+                            color: '#888780',
+                            font: {
+                                size: 10
+                            },
+                            boxWidth: 12
+                        }
+                    }
+                },
+                scales: commonScales
+            }
+        });
+    }
+    async function fetchData() {
+        try {
+            await fetchAllSensors();
+            const pv = sensorVal(CONFIG.sensorPVPower),
+                grid = sensorVal(CONFIG.sensorGridPower);
+            const yTotal = sensorVal(CONFIG.sensorYieldTotal),
+                iTotal = sensorVal(CONFIG.sensorGridTotal),
+                eTotal = sensorVal(CONFIG.sensorGridRet);
+            setText('v-pv', pv == null ? '—' : Math.round(pv).toLocaleString('de-DE'));
+            setText('v-grid', grid == null ? '—' : Math.round(Math.abs(grid)).toLocaleString('de-DE'));
+            setText('v-cons', pv == null || grid == null ? '—' : Math.round(Math.max(0, pv + grid)).toLocaleString('de-DE'));
+            const wrap = document.getElementById('grid-wrap'),
+                dot = document.getElementById('grid-dot');
+            if (grid != null && grid < 0) {
+                wrap.className = 'card-value feed';
+                dot.style.background = 'var(--feed)';
+                setText('grid-hint', '↓ Einspeisung');
+            }
+            else {
+                wrap.className = 'card-value grid';
+                dot.style.background = 'var(--grid)';
+                setText('grid-hint', '↑ Netzbezug');
+            }
+            setText('v-yield-total', yTotal == null ? '—' : fmt(yTotal, 2));
+            setText('v-import-total', iTotal == null ? '—' : fmt(iTotal, 2));
+            setText('v-export-total', eTotal == null ? '—' : fmt(eTotal, 2));
+            // Gesamtersparnis = selbst genutzter PV-Ertrag × Strompreis.
+            const totalSelfUse = (yTotal == null || eTotal == null) ? null : Math.max(0, yTotal - eTotal);
+            setText('v-saved-total', totalSelfUse == null ? '—' : fmt(totalSelfUse * CONFIG.strompreis, 2));
+            await fetchTodayAndWeek();
+            await fetchVerlauf();
+            setText('last-update', '● Aktualisiert ' + new Date().toLocaleTimeString('de-DE', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            }));
+        } catch (e) {
+            document.getElementById('last-update').innerHTML = '<span class="error">Fehler: ' + String(e.message).replace(/[<>&"]/g, '') + '</span>';
+            console.error(e);
+        }
+    }
+    fetchData();
+    setInterval(fetchData, CONFIG.updateInterval);
+    </script>
 </body>
 </html>
-
